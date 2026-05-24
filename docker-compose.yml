@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: codecoach-postgres
+    environment:
+      POSTGRES_DB: codecoach
+      POSTGRES_USER: codecoach
+      POSTGRES_PASSWORD: codecoach
+    ports:
+      - "5432:5432"
+    volumes:
+      - codecoach_pgdata:/var/lib/postgresql/data
+
+volumes:
+  codecoach_pgdata:
