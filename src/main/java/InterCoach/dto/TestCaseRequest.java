@@ -1,5 +1,7 @@
 package InterCoach.dto;
 
+// DTO used when clients send test case creation requests.
+
 import jakarta.validation.constraints.NotBlank;
 
 public class TestCaseRequest {

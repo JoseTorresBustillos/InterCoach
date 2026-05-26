@@ -1,5 +1,7 @@
 package InterCoach.repository;
 
+// JPA repository used to interact with the test_cases table.
+
 import InterCoach.model.TestCase;
 import org.springframework.data.jpa.repository.JpaRepository;
 

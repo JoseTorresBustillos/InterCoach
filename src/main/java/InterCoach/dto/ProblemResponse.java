@@ -1,5 +1,7 @@
 package InterCoach.dto;
 
+// DTO returned to clients when sending problem data.
+
 import InterCoach.model.Difficulty;
 import java.time.Instant;
 

@@ -1,5 +1,7 @@
 package InterCoach.controller;
 
+// Handles HTTP requests related to problem test cases.
+
 import InterCoach.dto.TestCaseRequest;
 import InterCoach.dto.TestCaseResponse;
 import InterCoach.service.TestCaseService;
@@ -15,7 +17,9 @@ public class TestCaseController {
 
     private final TestCaseService testCaseService;
 
-    public TestCaseController(TestCaseService testCaseService) {
+    
+    // Constructor injection keeps dependencies explicit and testable.
+public TestCaseController(TestCaseService testCaseService) {
         this.testCaseService = testCaseService;
     }
 

@@ -1,5 +1,7 @@
 package InterCoach.dto;
 
+// DTO returned to clients when sending test case data.
+
 import java.time.Instant;
 
 public record TestCaseResponse(

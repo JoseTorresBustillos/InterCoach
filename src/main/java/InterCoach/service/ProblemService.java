@@ -1,5 +1,7 @@
 package InterCoach.service;
 
+// Contains business logic for creating, retrieving, updating, and deleting problems.
+
 import InterCoach.dto.ProblemRequest;
 import InterCoach.dto.ProblemResponse;
 import InterCoach.model.Problem;
@@ -13,20 +15,24 @@ public class ProblemService {
 
     private final ProblemRepository problemRepository;
 
-    public ProblemService(ProblemRepository problemRepository) {
+    
+    // Constructor injection keeps dependencies explicit and testable.
+public ProblemService(ProblemRepository problemRepository) {
         this.problemRepository = problemRepository;
     }
 
     public List<ProblemResponse> getAllProblems() {
         return problemRepository.findAll()
                 .stream()
-                .map(this::toResponse)
+                .                // Converts entities into response DTOs before returning them.
+map(this::toResponse)
                 .toList();
     }
 
     public ProblemResponse getProblemById(Long id) {
         Problem problem = problemRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Problem not found with id: " + id));
+                .                // Throws an error if the requested record does not exist.
+orElseThrow(() -> new RuntimeException("Problem not found with id: " + id));
 
         return toResponse(problem);
     }
@@ -35,7 +41,8 @@ public class ProblemService {
         Problem problem = new Problem();
         updateProblemFields(problem, request);
 
-        Problem savedProblem = problemRepository.save(problem);
+        Problem savedProblem =         // Persists the problem and returns the saved entity.
+problemRepository.save(problem);
         return toResponse(savedProblem);
     }
 

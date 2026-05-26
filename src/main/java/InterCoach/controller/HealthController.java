@@ -1,5 +1,7 @@
 package InterCoach.controller;
 
+// Simple health-check endpoint used to confirm the API is running.
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 

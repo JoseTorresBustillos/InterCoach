@@ -1,5 +1,7 @@
 package InterCoach.model;
 
+// Entity representing an input/output test case tied to a problem.
+
 import jakarta.persistence.*;
 import java.time.Instant;
 
@@ -24,7 +26,8 @@ public class TestCase {
     @JoinColumn(name = "problem_id", nullable = false)
     private Problem problem;
 
-    @PrePersist
+        // Automatically sets timestamps before the entity is first saved.
+@PrePersist
     void onCreate() {
         createdAt = Instant.now();
     }

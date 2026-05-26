@@ -1,5 +1,7 @@
 package InterCoach.controller;
 
+// Handles HTTP requests related to coding problems.
+
 import InterCoach.dto.ProblemRequest;
 import InterCoach.dto.ProblemResponse;
 import InterCoach.service.ProblemService;
@@ -15,7 +17,9 @@ public class ProblemController {
 
     private final ProblemService problemService;
 
-    public ProblemController(ProblemService problemService) {
+    
+    // Constructor injection keeps dependencies explicit and testable.
+public ProblemController(ProblemService problemService) {
         this.problemService = problemService;
     }
 

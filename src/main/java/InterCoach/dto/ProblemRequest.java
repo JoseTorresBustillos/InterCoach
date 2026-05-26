@@ -1,5 +1,7 @@
 package InterCoach.dto;
 
+// DTO used when clients send problem creation or update requests.
+
 import InterCoach.model.Difficulty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

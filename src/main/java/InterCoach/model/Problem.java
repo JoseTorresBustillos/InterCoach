@@ -1,5 +1,7 @@
 package InterCoach.model;
 
+// Entity representing a coding problem stored in the database.
+
 import jakarta.persistence.*;
 import java.time.Instant;
 
@@ -38,13 +40,15 @@ public class Problem {
     private Instant createdAt;
     private Instant updatedAt;
 
-    @PrePersist
+        // Automatically sets timestamps before the entity is first saved.
+@PrePersist
     void onCreate() {
         createdAt = Instant.now();
         updatedAt = Instant.now();
     }
 
-    @PreUpdate
+        // Refreshes the updated timestamp whenever the entity changes.
+@PreUpdate
     void onUpdate() {
         updatedAt = Instant.now();
     }
