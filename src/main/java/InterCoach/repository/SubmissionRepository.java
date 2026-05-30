@@ -1,0 +1,10 @@
+package InterCoach.repository;
+
+import InterCoach.model.Submission;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface SubmissionRepository extends JpaRepository<Submission, Long> {
+    List<Submission> findByProblemId(Long problemId);
+}
