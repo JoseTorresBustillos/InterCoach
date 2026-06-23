@@ -8,6 +8,8 @@ import InterCoach.model.SubmissionStatus;
 import InterCoach.repository.ProblemRepository;
 import InterCoach.repository.SubmissionRepository;
 import org.springframework.stereotype.Service;
+import InterCoach.dto.AiFeedbackResponse;
+import java.util.StringJoiner;
 
 import java.util.List;
 
@@ -42,12 +44,20 @@ public class SubmissionService {
 
         try {
             // Review after saving so the submission exists even if the AI request fails.
-            String feedback = aiFeedbackService.reviewSubmission(problem, request.getSubmittedCode());
+            AiFeedbackResponse feedback = aiFeedbackService.reviewSubmission(problem, request.getSubmittedCode());
 
-            savedSubmission.setAiFeedback(feedback);
-            savedSubmission.setStatus(SubmissionStatus.REVIEWED);
+           // Store both structured fields and a readable fallback summary.
+            savedSubmission.setFeedbackSummary(feedback.summary());
+            savedSubmission.setCorrectness(feedback.correctness());
+            savedSubmission.setBugs(joinList(feedback.bugs()));
+            savedSubmission.setEdgeCases(joinList(feedback.edgeCases()));
+            savedSubmission.setTimeComplexity(feedback.timeComplexity());
+            savedSubmission.setSpaceComplexity(feedback.spaceComplexity());
+            savedSubmission.setHint(feedback.hint());
+            savedSubmission.setSuggestedImprovement(feedback.suggestedImprovement());
 
-            savedSubmission = submissionRepository.save(savedSubmission);
+savedSubmission.setAiFeedback(feedback.summary());
+savedSubmission.setStatus(SubmissionStatus.REVIEWED);
         } catch (Exception e) {
             // Keep failed AI calls visible without losing the user's submitted code.
             savedSubmission.setStatus(SubmissionStatus.FAILED);
@@ -77,17 +87,35 @@ public class SubmissionService {
                 .toList();
     }
 
-    private SubmissionResponse toResponse(Submission submission) {
-        return new SubmissionResponse(
-                submission.getId(),
-                submission.getProblem().getId(),
-                submission.getSubmittedCode(),
-                submission.getLanguage(),
-                submission.getStatus(),
-                submission.getAiFeedback(),
-                submission.getTimeComplexity(),
-                submission.getSpaceComplexity(),
-                submission.getCreatedAt()
+   private SubmissionResponse toResponse(Submission submission) {
+    return new SubmissionResponse(
+            submission.getId(),
+            submission.getProblem().getId(),
+            submission.getSubmittedCode(),
+            submission.getLanguage(),
+            submission.getStatus(),
+            submission.getAiFeedback(),
+            submission.getFeedbackSummary(),
+            submission.getCorrectness(),
+            submission.getBugs(),
+            submission.getEdgeCases(),
+            submission.getTimeComplexity(),
+            submission.getSpaceComplexity(),
+            submission.getHint(),
+            submission.getSuggestedImprovement(),
+            submission.getCreatedAt()
         );
     }
+    private String joinList(List<String> items) {
+    if (items == null || items.isEmpty()) {
+        return "";
+    }
+
+    StringJoiner joiner = new StringJoiner("\n");
+    for (String item : items) {
+        joiner.add("- " + item);
+    }
+
+    return joiner.toString();
+}
 }

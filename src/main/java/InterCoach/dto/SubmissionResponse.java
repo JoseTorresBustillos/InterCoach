@@ -10,7 +10,13 @@ public record SubmissionResponse(
         String language,
         SubmissionStatus status,
         String aiFeedback,
+        String feedbackSummary,
+        String correctness,
+        String bugs,
+        String edgeCases,
         String timeComplexity,
         String spaceComplexity,
+        String hint,
+        String suggestedImprovement,
         Instant createdAt
 ) {}

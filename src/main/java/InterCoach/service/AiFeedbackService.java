@@ -1,5 +1,6 @@
 package InterCoach.service;
 
+import InterCoach.dto.AiFeedbackResponse;
 import InterCoach.model.Problem;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
@@ -13,8 +14,8 @@ public class AiFeedbackService {
         this.chatClient = chatClientBuilder.build();
     }
 
-    public String reviewSubmission(Problem problem, String submittedCode) {
-        // Keep the prompt focused so the AI gives useful interview-style feedback.
+    public AiFeedbackResponse reviewSubmission(Problem problem, String submittedCode) {
+        // Ask for strict JSON so the app can store feedback in separate fields.
         String prompt = """
                 You are an experienced coding interview coach.
 
@@ -32,18 +33,22 @@ public class AiFeedbackService {
                 Submitted Code:
                 %s
 
-                Respond using this exact structure:
+                Return only valid JSON with this exact shape:
 
-                Correctness:
-                Bugs or Issues:
-                Time Complexity:
-                Space Complexity:
-                Edge Cases:
-                Hint:
-                Suggested Improvement:
+                {
+                  "summary": "...",
+                  "correctness": "...",
+                  "bugs": ["..."],
+                  "edgeCases": ["..."],
+                  "timeComplexity": "...",
+                  "spaceComplexity": "...",
+                  "hint": "...",
+                  "suggestedImprovement": "..."
+                }
 
-                Do not rewrite the full solution unless necessary.
-                Keep the feedback clear, concise, and interview-focused.
+                Do not include markdown.
+                Do not wrap the JSON in code fences.
+                Keep feedback clear, concise, and interview-focused.
                 """.formatted(
                 problem.getTitle(),
                 problem.getDescription(),
@@ -54,6 +59,6 @@ public class AiFeedbackService {
         return chatClient.prompt()
                 .user(prompt)
                 .call()
-                .content();
+                .entity(AiFeedbackResponse.class);
     }
 }
