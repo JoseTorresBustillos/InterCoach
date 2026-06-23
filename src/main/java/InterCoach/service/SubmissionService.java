@@ -16,13 +16,16 @@ public class SubmissionService {
 
     private final SubmissionRepository submissionRepository;
     private final ProblemRepository problemRepository;
+    private final AiFeedbackService aiFeedbackService;
 
     public SubmissionService(
             SubmissionRepository submissionRepository,
-            ProblemRepository problemRepository
+            ProblemRepository problemRepository,
+            AiFeedbackService aiFeedbackService
     ) {
         this.submissionRepository = submissionRepository;
         this.problemRepository = problemRepository;
+        this.aiFeedbackService = aiFeedbackService;
     }
 
     public SubmissionResponse createSubmission(Long problemId, SubmissionRequest request) {
@@ -36,6 +39,23 @@ public class SubmissionService {
         submission.setStatus(SubmissionStatus.PENDING);
 
         Submission savedSubmission = submissionRepository.save(submission);
+
+        try {
+            // Review after saving so the submission exists even if the AI request fails.
+            String feedback = aiFeedbackService.reviewSubmission(problem, request.getSubmittedCode());
+
+            savedSubmission.setAiFeedback(feedback);
+            savedSubmission.setStatus(SubmissionStatus.REVIEWED);
+
+            savedSubmission = submissionRepository.save(savedSubmission);
+        } catch (Exception e) {
+            // Keep failed AI calls visible without losing the user's submitted code.
+            savedSubmission.setStatus(SubmissionStatus.FAILED);
+            savedSubmission.setAiFeedback("AI feedback failed: " + e.getMessage());
+
+            savedSubmission = submissionRepository.save(savedSubmission);
+        }
+
         return toResponse(savedSubmission);
     }
 
