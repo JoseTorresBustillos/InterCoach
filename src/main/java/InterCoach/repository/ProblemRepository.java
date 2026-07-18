@@ -4,6 +4,9 @@ package InterCoach.repository;
 
 import InterCoach.model.Problem;
 import org.springframework.data.jpa.repository.JpaRepository;
+import InterCoach.model.Difficulty;
+import java.util.List;
 
 public interface ProblemRepository extends JpaRepository<Problem, Long> {
+    List<Problem> findByDifficulty(Difficulty difficulty);
 }
