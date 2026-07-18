@@ -1,11 +1,13 @@
 package InterCoach.dto;
 
 import InterCoach.model.SubmissionStatus;
+
 import java.time.Instant;
 
 public record SubmissionResponse(
         Long id,
         Long problemId,
+        Long userId,
         String submittedCode,
         String language,
         SubmissionStatus status,
@@ -19,4 +21,5 @@ public record SubmissionResponse(
         String hint,
         String suggestedImprovement,
         Instant createdAt
-) {}
+) {
+}

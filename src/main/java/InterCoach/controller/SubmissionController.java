@@ -36,4 +36,9 @@ public class SubmissionController {
     public List<SubmissionResponse> getSubmissionsForProblem(@PathVariable Long problemId) {
         return submissionService.getSubmissionsForProblem(problemId);
     }
+
+    @GetMapping("/api/users/{userId}/submissions")
+    public List<SubmissionResponse> getSubmissionsForUser(@PathVariable Long userId) {
+        return submissionService.getSubmissionsForUser(userId);
+    }
 }

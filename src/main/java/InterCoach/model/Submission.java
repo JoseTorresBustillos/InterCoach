@@ -1,6 +1,7 @@
 package InterCoach.model;
 
 import jakarta.persistence.*;
+
 import java.time.Instant;
 
 @Entity
@@ -50,6 +51,10 @@ public class Submission {
     @JoinColumn(name = "problem_id", nullable = false)
     private Problem problem;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private AppUser user; 
+
     @PrePersist
     void onCreate() {
         createdAt = Instant.now();
@@ -75,6 +80,7 @@ public class Submission {
     public String getSuggestedImprovement() { return suggestedImprovement; }
     public Instant getCreatedAt() { return createdAt; }
     public Problem getProblem() { return problem; }
+    public AppUser getUser() {return user;}
 
     public void setSubmittedCode(String submittedCode) { this.submittedCode = submittedCode; }
     public void setLanguage(String language) { this.language = language; }
@@ -89,4 +95,5 @@ public class Submission {
     public void setHint(String hint) { this.hint = hint; }
     public void setSuggestedImprovement(String suggestedImprovement) { this.suggestedImprovement = suggestedImprovement; }
     public void setProblem(Problem problem) { this.problem = problem; }
+    public void setUser(AppUser user) {this.user = user;}
 }
