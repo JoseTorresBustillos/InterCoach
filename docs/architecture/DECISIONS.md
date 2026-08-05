@@ -38,3 +38,10 @@ This keeps controllers thin and gives clients predictable JSON errors.
 The `test` profile excludes local database, pgvector, and AI chat-client
 auto-configuration. This keeps the default test suite reliable without
 requiring Docker, PostgreSQL, or OpenAI credentials.
+
+## ADR-008: Use Spring Security with Signed JWTs
+
+Authentication uses Spring Security for request filtering, password
+hashing, and security context management. JWT signing is implemented
+with JDK HMAC SHA-256 primitives to avoid adding a second token library
+before the project needs advanced JWT features.

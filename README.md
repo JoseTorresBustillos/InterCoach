@@ -22,6 +22,7 @@ interview APIs.
 - Problem CRUD: `/api/problems`
 - Problem test cases: `/api/problems/{problemId}/test-cases`
 - Basic users: `/api/users`
+- JWT authentication: `/api/auth/register` and `/api/auth/login`
 - Submissions and AI review: `/api/problems/{problemId}/submissions`
 - Submission lookup by problem, user, or submission id
 - Basic recommendations: `GET /api/recommendations`
@@ -45,6 +46,9 @@ Run the application:
 
 The OpenAI API key is read from `OPENAI_API_KEY`.
 
+JWT signing uses `JWT_SECRET` when present. The checked-in default is for
+local development only.
+
 ## Testing
 
 Run the test suite:
@@ -55,7 +59,8 @@ Run the test suite:
 
 Tests use the `test` profile to avoid requiring local PostgreSQL,
 pgvector, or live OpenAI calls. AI behavior is covered through mocked
-service tests.
+service tests, and authentication behavior is covered with JWT and auth
+service unit tests.
 
 ## Documentation
 

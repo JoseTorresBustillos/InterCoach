@@ -85,8 +85,19 @@ Completed stabilization work:
 -   API error handler tests.
 -   Documentation synchronized with implemented endpoints.
 
-Current stopping point: authentication is the next major feature
-milestone.
+## Phase 12
+
+Completed authentication foundation:
+
+-   Spring Security added.
+-   BCrypt password hashing added to user accounts.
+-   `/api/auth/register` implemented.
+-   `/api/auth/login` implemented.
+-   Stateless JWT bearer token validation added.
+-   Auth and JWT tests added.
+
+Current stopping point: controller integration tests and user profile
+work are the next development priorities.
 
 ------------------------------------------------------------------------
 
@@ -114,11 +125,10 @@ interview platform.
 
 ## 1. Secure the Application
 
--   Spring Security
--   User authentication
--   Password hashing
+-   Refresh tokens
+-   Password reset flow
 -   Roles
--   JWT authentication
+-   Admin authorization
 
 ## 2. User Profiles
 

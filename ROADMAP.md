@@ -8,6 +8,8 @@
 - Problem CRUD.
 - Problem test cases.
 - Basic user records.
+- Spring Security and JWT authentication.
+- Password hashing and account login.
 - Submission flow tied to problems and users.
 - Spring AI integration.
 - Structured AI code review persistence.
@@ -19,16 +21,14 @@
 
 ## Next
 
-1. Spring Security and JWT authentication.
-2. Password hashing and account login.
-3. Controller integration tests for the public API.
-4. Testcontainers-backed PostgreSQL repository tests.
-5. User dashboard and progress summaries.
-6. User-scoped recommendation ranking.
-7. pgvector embedding pipeline.
-8. RAG study assistant with semantic retrieval.
-9. Code execution sandbox.
-10. CI/CD and deployment.
+1. Controller integration tests for the public API.
+2. Testcontainers-backed PostgreSQL repository tests.
+3. User dashboard and progress summaries.
+4. User-scoped recommendation ranking.
+5. pgvector embedding pipeline.
+6. RAG study assistant with semantic retrieval.
+7. Code execution sandbox.
+8. CI/CD and deployment.
 
 ## Release Goals
 

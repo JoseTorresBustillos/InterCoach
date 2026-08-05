@@ -46,4 +46,22 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().path()).isEqualTo("/api/users");
         assertThat(response.getBody().message()).isEqualTo("Email is already in use.");
     }
+
+    @Test
+    void mapsAuthenticationFailuresToUnauthorizedResponses() {
+        MockHttpServletRequest request =
+                new MockHttpServletRequest("POST", "/api/auth/login");
+
+        ResponseEntity<ApiErrorResponse> response =
+                handler.handleAuthenticationFailed(
+                        new AuthenticationFailedException("Invalid credentials."),
+                        request
+                );
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().status()).isEqualTo(401);
+        assertThat(response.getBody().path()).isEqualTo("/api/auth/login");
+        assertThat(response.getBody().message()).isEqualTo("Invalid credentials.");
+    }
 }

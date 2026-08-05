@@ -6,6 +6,7 @@ import InterCoach.exception.DuplicateResourceException;
 import InterCoach.exception.ResourceNotFoundException;
 import InterCoach.model.AppUser;
 import InterCoach.repository.AppUserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -14,9 +15,14 @@ import java.util.List;
 public class AppUserService {
 
     private final AppUserRepository appUserRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public AppUserService(AppUserRepository appUserRepository) {
+    public AppUserService(
+            AppUserRepository appUserRepository,
+            PasswordEncoder passwordEncoder
+    ) {
         this.appUserRepository = appUserRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public UserResponse createUser(UserRequest request) {
@@ -32,6 +38,7 @@ public class AppUserService {
         AppUser user = new AppUser();
         user.setUsername(request.getUsername().trim());
         user.setEmail(request.getEmail().trim().toLowerCase());
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
 
         return toResponse(appUserRepository.save(user));
     }

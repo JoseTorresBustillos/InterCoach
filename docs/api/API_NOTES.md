@@ -4,6 +4,21 @@
 
 - `GET /api/health`
 
+## Authentication
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+
+Both endpoints return a bearer token, expiration timestamp, and user
+summary. Passwords are stored as BCrypt hashes and are never returned in
+API responses.
+
+Use the returned token on protected endpoints:
+
+```http
+Authorization: Bearer <token>
+```
+
 ## Problems
 
 - `GET /api/problems`
@@ -23,8 +38,11 @@
 - `GET /api/users`
 - `GET /api/users/{userId}`
 
-These are basic user records only. Authentication is not implemented
-yet.
+These are protected user-management endpoints. General account creation
+should use `/api/auth/register`.
+
+All endpoints except `GET /api/health` and `/api/auth/*` require a
+bearer token.
 
 ## Submissions
 
@@ -76,9 +94,11 @@ Errors use a shared JSON shape:
 Validation failures return `400` and include field-level messages in
 `fieldErrors`.
 
+Authentication failures return `401`. Authenticated requests without
+authorization return `403`.
+
 ## Future Endpoints
 
-- `/auth/*`
 - `/dashboard/*`
 - `/analytics/*`
 - Vector-search and RAG endpoints.

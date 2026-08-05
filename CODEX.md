@@ -139,16 +139,15 @@ If architecture changes, also update:
 
 Current roadmap:
 
-1.  Authentication (Spring Security + JWT)
-2.  Controller integration tests
-3.  Testcontainers PostgreSQL tests
-4.  User Profiles
-5.  User-scoped Recommendation Engine
-6.  pgvector Search
-7.  RAG Study Assistant
-8.  Execution Sandbox
-9.  Analytics
-10. Deployment
+1.  Controller integration tests
+2.  Testcontainers PostgreSQL tests
+3.  User Profiles
+4.  User-scoped Recommendation Engine
+5.  pgvector Search
+6.  RAG Study Assistant
+7.  Execution Sandbox
+8.  Analytics
+9.  Deployment
 
 ------------------------------------------------------------------------
 

@@ -44,6 +44,18 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(AuthenticationFailedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAuthenticationFailed(
+            AuthenticationFailedException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.UNAUTHORIZED,
+                exception.getMessage(),
+                request
+        );
+    }
+
     @ExceptionHandler({
             IllegalArgumentException.class,
             IllegalStateException.class,

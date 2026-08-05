@@ -62,6 +62,9 @@ Completed
 - Problem CRUD
 - Problem test cases
 - Basic user records
+- Spring Security authentication
+- JWT login and registration
+- BCrypt password hashing
 - Submission persistence
 - AI review pipeline
 - Structured AI feedback storage
@@ -213,11 +216,14 @@ unexpected failures to a shared response body.
 
 # 13. Security Roadmap
 
-Spring Security
+Current
 
-JWT
+- Spring Security
+- JWT bearer tokens
+- BCrypt password hashing
+- Stateless API protection
 
-Password hashing
+Planned
 
 Role-based authorization
 
@@ -228,8 +234,6 @@ Rate limiting (future)
 ------------------------------------------------------------------------
 
 # 14. Future Modules
-
-Authentication
 
 Profiles
 

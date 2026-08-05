@@ -93,7 +93,14 @@ layered architecture - Small focused services
 -   Basic user records
 -   Unique username and email constraints
 -   User lookup endpoints
--   No authentication yet
+
+## Authentication
+
+-   Spring Security integration
+-   BCrypt password hashing
+-   JWT bearer tokens
+-   Register and login endpoints
+-   Stateless protected API requests
 
 ## Recommendations
 
@@ -274,11 +281,13 @@ Keep track of:
 -   [x] Docker integration
 -   [x] Initial testing
 -   [x] Basic user records
+-   [x] Authentication
+-   [x] Password hashing
+-   [x] JWT login flow
 -   [x] Basic recommendations
 -   [x] Basic study assistant
 -   [x] Basic mock interviews
 -   [x] Centralized API error handling
--   [ ] Authentication
 -   [ ] User profiles and dashboard
 -   [ ] User-scoped recommendations
 -   [ ] pgvector RAG

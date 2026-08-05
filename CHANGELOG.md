@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+-   Added Spring Security with stateless JWT authentication.
+-   Added `/api/auth/register` and `/api/auth/login`.
+-   Added BCrypt password hashing and user roles.
+-   Added JSON security errors for unauthenticated and forbidden
+    requests.
+-   Added JWT and authentication service tests.
 -   Added centralized JSON API error handling.
 -   Added project exceptions for missing and duplicate resources.
 -   Updated services to return consistent 404 and 409 errors.

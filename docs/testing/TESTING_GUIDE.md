@@ -12,9 +12,12 @@ pgvector, or OpenAI credentials.
 ## Current Coverage
 
 - Spring Boot context smoke test using the `test` profile.
+- JWT generation, validation, and tamper rejection tests.
+- Authentication service tests for registration, login, duplicate users,
+  and bad credentials.
 - Submission service tests for AI review success and AI provider
   failure.
-- Global exception handler tests for 404 and 409 responses.
+- Global exception handler tests for 404, 409, and 401 responses.
 
 ## Test Profile
 
