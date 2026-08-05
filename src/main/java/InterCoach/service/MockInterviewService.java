@@ -2,6 +2,7 @@ package InterCoach.service;
 
 import InterCoach.dto.MockInterviewRequest;
 import InterCoach.dto.MockInterviewResponse;
+import InterCoach.exception.ResourceNotFoundException;
 import InterCoach.model.AppUser;
 import InterCoach.model.InterviewStatus;
 import InterCoach.model.MockInterviewSession;
@@ -40,7 +41,7 @@ public class MockInterviewService {
     ) {
         AppUser user = appUserRepository.findById(userId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "User not found with id: " + userId
                         )
                 );
@@ -49,7 +50,7 @@ public class MockInterviewService {
                 problemRepository.findByDifficulty(request.getDifficulty());
 
         if (matchingProblems.isEmpty()) {
-            throw new RuntimeException(
+            throw new ResourceNotFoundException(
                     "No problems found for difficulty: "
                             + request.getDifficulty()
             );
@@ -80,7 +81,7 @@ public class MockInterviewService {
     @Transactional(readOnly = true)
     public List<MockInterviewResponse> getInterviewsForUser(Long userId) {
         if (!appUserRepository.existsById(userId)) {
-            throw new RuntimeException(
+            throw new ResourceNotFoundException(
                     "User not found with id: " + userId
             );
         }
@@ -119,7 +120,7 @@ public class MockInterviewService {
     private MockInterviewSession findSession(Long sessionId) {
         return mockInterviewRepository.findById(sessionId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "Mock interview not found with id: "
                                         + sessionId
                         )

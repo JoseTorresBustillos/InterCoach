@@ -2,6 +2,8 @@ package InterCoach.service;
 
 import InterCoach.dto.UserRequest;
 import InterCoach.dto.UserResponse;
+import InterCoach.exception.DuplicateResourceException;
+import InterCoach.exception.ResourceNotFoundException;
 import InterCoach.model.AppUser;
 import InterCoach.repository.AppUserRepository;
 import org.springframework.stereotype.Service;
@@ -20,11 +22,11 @@ public class AppUserService {
     public UserResponse createUser(UserRequest request) {
         // Reject duplicates early so clients receive a clear failure reason.
         if (appUserRepository.existsByUsernameIgnoreCase(request.getUsername())) {
-            throw new IllegalArgumentException("Username is already in use.");
+            throw new DuplicateResourceException("Username is already in use.");
         }
 
         if (appUserRepository.existsByEmailIgnoreCase(request.getEmail())) {
-            throw new IllegalArgumentException("Email is already in use.");
+            throw new DuplicateResourceException("Email is already in use.");
         }
 
         AppUser user = new AppUser();
@@ -44,7 +46,9 @@ public class AppUserService {
     public UserResponse getUserById(Long userId) {
         AppUser user = appUserRepository.findById(userId)
                 .orElseThrow(() ->
-                        new RuntimeException("User not found with id: " + userId)
+                        new ResourceNotFoundException(
+                                "User not found with id: " + userId
+                        )
                 );
 
         return toResponse(user);

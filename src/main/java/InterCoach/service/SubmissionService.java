@@ -3,6 +3,7 @@ package InterCoach.service;
 import InterCoach.dto.AiFeedbackResponse;
 import InterCoach.dto.SubmissionRequest;
 import InterCoach.dto.SubmissionResponse;
+import InterCoach.exception.ResourceNotFoundException;
 import InterCoach.model.AppUser;
 import InterCoach.model.Problem;
 import InterCoach.model.Submission;
@@ -40,14 +41,14 @@ public class SubmissionService {
     ) {
         Problem problem = problemRepository.findById(problemId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "Problem not found with id: " + problemId
                         )
                 );
 
         AppUser user = appUserRepository.findById(request.getUserId())
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "User not found with id: " + request.getUserId()
                         )
                 );
@@ -97,7 +98,7 @@ public class SubmissionService {
     public SubmissionResponse getSubmissionById(Long submissionId) {
         Submission submission = submissionRepository.findById(submissionId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "Submission not found with id: " + submissionId
                         )
                 );
@@ -107,7 +108,7 @@ public class SubmissionService {
 
     public List<SubmissionResponse> getSubmissionsForProblem(Long problemId) {
         if (!problemRepository.existsById(problemId)) {
-            throw new RuntimeException(
+            throw new ResourceNotFoundException(
                     "Problem not found with id: " + problemId
             );
         }
@@ -120,7 +121,7 @@ public class SubmissionService {
 
     public List<SubmissionResponse> getSubmissionsForUser(Long userId) {
         if (!appUserRepository.existsById(userId)) {
-            throw new RuntimeException(
+            throw new ResourceNotFoundException(
                     "User not found with id: " + userId
             );
         }

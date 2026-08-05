@@ -4,6 +4,7 @@ package InterCoach.service;
 
 import InterCoach.dto.ProblemRequest;
 import InterCoach.dto.ProblemResponse;
+import InterCoach.exception.ResourceNotFoundException;
 import InterCoach.model.Problem;
 import InterCoach.repository.ProblemRepository;
 import org.springframework.stereotype.Service;
@@ -15,24 +16,23 @@ public class ProblemService {
 
     private final ProblemRepository problemRepository;
 
-    
     // Constructor injection keeps dependencies explicit and testable.
-public ProblemService(ProblemRepository problemRepository) {
+    public ProblemService(ProblemRepository problemRepository) {
         this.problemRepository = problemRepository;
     }
 
     public List<ProblemResponse> getAllProblems() {
         return problemRepository.findAll()
                 .stream()
-                .                // Converts entities into response DTOs before returning them.
-map(this::toResponse)
+                .map(this::toResponse)
                 .toList();
     }
 
     public ProblemResponse getProblemById(Long id) {
         Problem problem = problemRepository.findById(id)
-                .                // Throws an error if the requested record does not exist.
-orElseThrow(() -> new RuntimeException("Problem not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Problem not found with id: " + id
+                ));
 
         return toResponse(problem);
     }
@@ -41,14 +41,15 @@ orElseThrow(() -> new RuntimeException("Problem not found with id: " + id));
         Problem problem = new Problem();
         updateProblemFields(problem, request);
 
-        Problem savedProblem =         // Persists the problem and returns the saved entity.
-problemRepository.save(problem);
+        Problem savedProblem = problemRepository.save(problem);
         return toResponse(savedProblem);
     }
 
     public ProblemResponse updateProblem(Long id, ProblemRequest request) {
         Problem problem = problemRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Problem not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Problem not found with id: " + id
+                ));
 
         updateProblemFields(problem, request);
 
@@ -58,7 +59,9 @@ problemRepository.save(problem);
 
     public void deleteProblem(Long id) {
         if (!problemRepository.existsById(id)) {
-            throw new RuntimeException("Problem not found with id: " + id);
+            throw new ResourceNotFoundException(
+                    "Problem not found with id: " + id
+            );
         }
 
         problemRepository.deleteById(id);

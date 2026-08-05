@@ -4,6 +4,7 @@ package InterCoach.service;
 
 import InterCoach.dto.TestCaseRequest;
 import InterCoach.dto.TestCaseResponse;
+import InterCoach.exception.ResourceNotFoundException;
 import InterCoach.model.Problem;
 import InterCoach.model.TestCase;
 import InterCoach.repository.ProblemRepository;
@@ -18,9 +19,8 @@ public class TestCaseService {
     private final TestCaseRepository testCaseRepository;
     private final ProblemRepository problemRepository;
 
-    
     // Constructor injection keeps dependencies explicit and testable.
-public TestCaseService(
+    public TestCaseService(
             TestCaseRepository testCaseRepository,
             ProblemRepository problemRepository
     ) {
@@ -30,8 +30,9 @@ public TestCaseService(
 
     public TestCaseResponse createTestCase(Long problemId, TestCaseRequest request) {
         Problem problem = problemRepository.findById(problemId)
-                .                // Throws an error if the requested record does not exist.
-orElseThrow(() -> new RuntimeException("Problem not found with id: " + problemId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Problem not found with id: " + problemId
+                ));
 
         TestCase testCase = new TestCase();
         testCase.setProblem(problem);
@@ -39,20 +40,20 @@ orElseThrow(() -> new RuntimeException("Problem not found with id: " + problemId
         testCase.setExpectedOutput(request.getExpectedOutput());
         testCase.setHidden(request.isHidden());
 
-        TestCase savedTestCase =         // Persists the test case and returns the saved entity.
-testCaseRepository.save(testCase);
+        TestCase savedTestCase = testCaseRepository.save(testCase);
         return toResponse(savedTestCase);
     }
 
     public List<TestCaseResponse> getTestCasesForProblem(Long problemId) {
         if (!problemRepository.existsById(problemId)) {
-            throw new RuntimeException("Problem not found with id: " + problemId);
+            throw new ResourceNotFoundException(
+                    "Problem not found with id: " + problemId
+            );
         }
 
         return testCaseRepository.findByProblemId(problemId)
                 .stream()
-                .                // Converts entities into response DTOs before returning them.
-map(this::toResponse)
+                .map(this::toResponse)
                 .toList();
     }
 
