@@ -145,6 +145,28 @@ class ApiControllerIntegrationTest {
                 .andExpect(jsonPath("$").isArray());
     }
 
+    @Test
+    void dashboardEndpointAcceptsValidBearerToken() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(user).value();
+
+        given(appUserRepository.findByUsernameIgnoreCase("coder"))
+                .willReturn(Optional.of(user));
+        given(appUserRepository.findById(42L)).willReturn(Optional.of(user));
+        given(submissionRepository.findByUserId(42L)).willReturn(List.of());
+        given(mockInterviewRepository.findByUserIdOrderByStartedAtDesc(42L))
+                .willReturn(List.of());
+
+        mockMvc.perform(get("/api/users/42/dashboard")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(42))
+                .andExpect(jsonPath("$.username").value("coder"))
+                .andExpect(jsonPath("$.totalSubmissions").value(0))
+                .andExpect(jsonPath("$.recentSubmissions").isArray());
+    }
+
     private AppUser user(String username) {
         AppUser user = new AppUser();
         ReflectionTestUtils.setField(user, "id", 42L);
