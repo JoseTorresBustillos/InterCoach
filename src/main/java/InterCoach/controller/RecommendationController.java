@@ -3,6 +3,7 @@ package InterCoach.controller;
 import InterCoach.dto.RecommendationResponse;
 import InterCoach.service.RecommendationService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -19,5 +20,12 @@ public class RecommendationController {
     @GetMapping("/api/recommendations")
     public List<RecommendationResponse> getRecommendations() {
         return recommendationService.getRecommendations();
+    }
+
+    @GetMapping("/api/users/{userId}/recommendations")
+    public List<RecommendationResponse> getRecommendationsForUser(
+            @PathVariable Long userId
+    ) {
+        return recommendationService.getRecommendationsForUser(userId);
     }
 }

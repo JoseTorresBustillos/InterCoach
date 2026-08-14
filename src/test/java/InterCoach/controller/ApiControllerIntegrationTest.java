@@ -1,6 +1,10 @@
 package InterCoach.controller;
 
 import InterCoach.model.AppUser;
+import InterCoach.model.Difficulty;
+import InterCoach.model.Problem;
+import InterCoach.model.Submission;
+import InterCoach.model.SubmissionStatus;
 import InterCoach.repository.AppUserRepository;
 import InterCoach.repository.MockInterviewRepository;
 import InterCoach.repository.ProblemRepository;
@@ -167,6 +171,31 @@ class ApiControllerIntegrationTest {
                 .andExpect(jsonPath("$.recentSubmissions").isArray());
     }
 
+    @Test
+    void userRecommendationEndpointAcceptsValidBearerToken() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(user).value();
+        Problem arrays = problem(1L, "Two Sum", Difficulty.EASY, "Arrays");
+        Problem graphs = problem(2L, "Clone Graph", Difficulty.MEDIUM, "Graphs");
+
+        given(appUserRepository.findByUsernameIgnoreCase("coder"))
+                .willReturn(Optional.of(user));
+        given(appUserRepository.existsById(42L)).willReturn(true);
+        given(problemRepository.findAll()).willReturn(List.of(graphs, arrays));
+        given(submissionRepository.findByUserId(42L))
+                .willReturn(List.of(submission(arrays, SubmissionStatus.FAILED)));
+
+        mockMvc.perform(get("/api/users/42/recommendations")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].problemId").value(1))
+                .andExpect(jsonPath("$[0].category").value("Arrays"))
+                .andExpect(jsonPath("$[0].reason").value(
+                        "Recommended because your submissions suggest this topic needs practice."
+                ));
+    }
+
     private AppUser user(String username) {
         AppUser user = new AppUser();
         ReflectionTestUtils.setField(user, "id", 42L);
@@ -175,6 +204,32 @@ class ApiControllerIntegrationTest {
         user.setEmail(username + "@example.com");
         user.setRole("USER");
         return user;
+    }
+
+    private Problem problem(
+            Long id,
+            String title,
+            Difficulty difficulty,
+            String category
+    ) {
+        Problem problem = new Problem();
+        ReflectionTestUtils.setField(problem, "id", id);
+        problem.setTitle(title);
+        problem.setDifficulty(difficulty);
+        problem.setCategory(category);
+        return problem;
+    }
+
+    private Submission submission(
+            Problem problem,
+            SubmissionStatus status
+    ) {
+        Submission submission = new Submission();
+        submission.setProblem(problem);
+        submission.setStatus(status);
+        submission.setSubmittedCode("class Solution {}");
+        submission.setLanguage("Java");
+        return submission;
     }
 
     private AppUser savedUser(AppUser user) {
