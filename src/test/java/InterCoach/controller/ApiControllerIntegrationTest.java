@@ -13,6 +13,9 @@ import InterCoach.repository.TestCaseRepository;
 import InterCoach.security.JwtService;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,6 +32,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -68,6 +72,9 @@ class ApiControllerIntegrationTest {
 
     @MockitoBean
     private TestCaseRepository testCaseRepository;
+
+    @MockitoBean
+    private VectorStore vectorStore;
 
     @Test
     void healthEndpointIsPublic() throws Exception {
@@ -194,6 +201,45 @@ class ApiControllerIntegrationTest {
                 .andExpect(jsonPath("$[0].reason").value(
                         "Recommended because your submissions suggest this topic needs practice."
                 ));
+    }
+
+    @Test
+    void semanticSearchEndpointAcceptsValidBearerToken() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(user).value();
+
+        given(appUserRepository.findByUsernameIgnoreCase("coder"))
+                .willReturn(Optional.of(user));
+        given(vectorStore.similaritySearch(any(SearchRequest.class)))
+                .willReturn(List.of(Document.builder()
+                        .id("problem-1")
+                        .text("Title: Two Sum\nDescription: Array practice")
+                        .metadata(Map.of(
+                                "documentType", "problem",
+                                "problemId", 1L,
+                                "title", "Two Sum",
+                                "difficulty", "EASY",
+                                "category", "Arrays",
+                                "tags", "hash-map"
+                        ))
+                        .score(0.93)
+                        .build()));
+
+        mockMvc.perform(post("/api/problems/semantic-search")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "query": "hash map array pair",
+                                  "topK": 1
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].problemId").value(1))
+                .andExpect(jsonPath("$[0].title").value("Two Sum"))
+                .andExpect(jsonPath("$[0].difficulty").value("EASY"))
+                .andExpect(jsonPath("$[0].score").value(0.93));
     }
 
     private AppUser user(String username) {

@@ -4,6 +4,7 @@ package InterCoach;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -38,6 +39,9 @@ class CoachApplicationTests {
 
 	@MockitoBean
 	private TestCaseRepository testCaseRepository;
+
+	@MockitoBean
+	private VectorStore vectorStore;
 
 	@Test
 	void contextLoads() {
