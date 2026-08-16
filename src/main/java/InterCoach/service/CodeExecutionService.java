@@ -19,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -129,14 +130,7 @@ public class CodeExecutionService {
     }
 
     private String compile(Path workspace) throws IOException {
-        ProcessBuilder processBuilder = new ProcessBuilder(
-                "javac",
-                "-J-Xmx" + properties.getMaxHeapMegabytes() + "m",
-                "-J-XX:ActiveProcessorCount="
-                        + properties.getActiveProcessorCount(),
-                "-proc:none",
-                SOURCE_FILE
-        )
+        ProcessBuilder processBuilder = new ProcessBuilder(compileCommand(workspace))
                 .directory(workspace.toFile())
                 .redirectErrorStream(true)
                 .redirectOutput(workspace.resolve("compile.out").toFile());
@@ -169,18 +163,7 @@ public class CodeExecutionService {
         Path errorFile = workspace.resolve("test-" + testCase.getId() + ".err");
 
         try {
-            ProcessBuilder processBuilder = new ProcessBuilder(
-                    "java",
-                    "-Xmx" + properties.getMaxHeapMegabytes() + "m",
-                    "-XX:ActiveProcessorCount="
-                            + properties.getActiveProcessorCount(),
-                    "-XX:+ExitOnOutOfMemoryError",
-                    "-Djava.io.tmpdir=" + workspace.toAbsolutePath(),
-                    "-Duser.home=" + workspace.toAbsolutePath(),
-                    "-cp",
-                    ".",
-                    MAIN_CLASS
-            )
+            ProcessBuilder processBuilder = new ProcessBuilder(testCommand(workspace))
                     .directory(workspace.toFile())
                     .redirectOutput(outputFile.toFile())
                     .redirectError(errorFile.toFile());
@@ -374,6 +357,81 @@ public class CodeExecutionService {
             process.destroyForcibly();
             return false;
         }
+    }
+
+    List<String> compileCommand(Path workspace) {
+        List<String> command = baseExecutionCommand(workspace);
+
+        command.addAll(List.of(
+                "javac",
+                "-J-Xmx" + properties.getMaxHeapMegabytes() + "m",
+                "-J-XX:ActiveProcessorCount="
+                        + properties.getActiveProcessorCount(),
+                "-proc:none",
+                SOURCE_FILE
+        ));
+
+        return command;
+    }
+
+    List<String> testCommand(Path workspace) {
+        String tmpDirectory = dockerMode()
+                ? "/tmp"
+                : workspace.toAbsolutePath().toString();
+        List<String> command = baseExecutionCommand(workspace);
+
+        command.addAll(List.of(
+                "java",
+                "-Xmx" + properties.getMaxHeapMegabytes() + "m",
+                "-XX:ActiveProcessorCount="
+                        + properties.getActiveProcessorCount(),
+                "-XX:+ExitOnOutOfMemoryError",
+                "-Djava.io.tmpdir=" + tmpDirectory,
+                "-Duser.home=" + tmpDirectory,
+                "-cp",
+                ".",
+                MAIN_CLASS
+        ));
+
+        return command;
+    }
+
+    private List<String> baseExecutionCommand(Path workspace) {
+        if (!dockerMode()) {
+            return new ArrayList<>();
+        }
+
+        List<String> command = new ArrayList<>();
+        command.addAll(List.of(
+                "docker",
+                "run",
+                "--rm",
+                "--network",
+                "none",
+                "--cpus",
+                String.valueOf(properties.getDockerCpuCount()),
+                "--memory",
+                properties.getDockerMemoryMegabytes() + "m",
+                "--pids-limit",
+                String.valueOf(properties.getDockerPidsLimit()),
+                "--read-only",
+                "--tmpfs",
+                "/tmp:rw,nosuid,nodev,size="
+                        + properties.getDockerTmpfsMegabytes()
+                        + "m",
+                "-v",
+                workspace.toAbsolutePath() + ":/workspace:rw",
+                "-w",
+                "/workspace",
+                properties.getDockerImage()
+        ));
+
+        return command;
+    }
+
+    private boolean dockerMode() {
+        return properties.getMode()
+                == CodeExecutionProperties.ExecutionMode.DOCKER;
     }
 
     private void sanitizeEnvironment(ProcessBuilder processBuilder) {

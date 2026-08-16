@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -218,6 +219,82 @@ class CodeExecutionServiceTest {
                 .isEqualTo(CodeExecutionTestCaseStatus.TIME_LIMIT_EXCEEDED);
         assertThat(response.testCases().getFirst().errorOutput())
                 .contains("1 seconds");
+    }
+
+    @Test
+    void compileCommandUsesLocalJavaToolchainByDefault() {
+        List<String> command =
+                codeExecutionService.compileCommand(Path.of("/tmp/workspace"));
+
+        assertThat(command)
+                .containsExactly(
+                        "javac",
+                        "-J-Xmx128m",
+                        "-J-XX:ActiveProcessorCount=1",
+                        "-proc:none",
+                        "Main.java"
+                );
+    }
+
+    @Test
+    void compileCommandCanRunInsideDockerSandbox() {
+        properties.setMode(CodeExecutionProperties.ExecutionMode.DOCKER);
+        properties.setDockerImage("eclipse-temurin:21-jdk");
+        properties.setDockerCpuCount(2);
+        properties.setDockerMemoryMegabytes(384);
+        properties.setDockerPidsLimit(48);
+        properties.setDockerTmpfsMegabytes(32);
+
+        List<String> command =
+                codeExecutionService.compileCommand(Path.of("/tmp/workspace"));
+
+        assertThat(command)
+                .containsSequence(
+                        "docker",
+                        "run",
+                        "--rm",
+                        "--network",
+                        "none"
+                )
+                .contains(
+                        "--cpus",
+                        "2",
+                        "--memory",
+                        "384m",
+                        "--pids-limit",
+                        "48",
+                        "--read-only",
+                        "--tmpfs",
+                        "/tmp:rw,nosuid,nodev,size=32m",
+                        "-v",
+                        "/tmp/workspace:/workspace:rw",
+                        "-w",
+                        "/workspace",
+                        "eclipse-temurin:21-jdk",
+                        "javac",
+                        "Main.java"
+                );
+    }
+
+    @Test
+    void testCommandCanRunInsideDockerSandbox() {
+        properties.setMode(CodeExecutionProperties.ExecutionMode.DOCKER);
+
+        List<String> command =
+                codeExecutionService.testCommand(Path.of("/tmp/workspace"));
+
+        assertThat(command)
+                .contains(
+                        "docker",
+                        "run",
+                        "--network",
+                        "none",
+                        "--read-only",
+                        "java",
+                        "-Djava.io.tmpdir=/tmp",
+                        "-Duser.home=/tmp",
+                        "Main"
+                );
     }
 
     @Test
