@@ -7,5 +7,6 @@ public enum CodeExecutionStatus {
     RUNTIME_ERROR,
     TIME_LIMIT_EXCEEDED,
     UNSUPPORTED_LANGUAGE,
+    SOURCE_TOO_LARGE,
     NO_TESTS
 }

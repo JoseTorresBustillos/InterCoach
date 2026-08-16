@@ -1,5 +1,6 @@
 package InterCoach.service;
 
+import InterCoach.config.CodeExecutionProperties;
 import InterCoach.dto.CodeExecutionRequest;
 import InterCoach.dto.CodeExecutionResponse;
 import InterCoach.dto.CodeExecutionStatus;
@@ -31,12 +32,15 @@ class CodeExecutionServiceTest {
     private TestCaseRepository testCaseRepository;
 
     private CodeExecutionService codeExecutionService;
+    private CodeExecutionProperties properties;
 
     @BeforeEach
     void setUp() {
+        properties = executionProperties();
         codeExecutionService = new CodeExecutionService(
                 problemRepository,
-                testCaseRepository
+                testCaseRepository,
+                properties
         );
     }
 
@@ -130,6 +134,93 @@ class CodeExecutionServiceTest {
     }
 
     @Test
+    void runCodeRejectsOversizedSourceBeforeLoadingTestCases() {
+        properties.setMaxSourceCharacters(20);
+        given(problemRepository.existsById(1L)).willReturn(true);
+
+        CodeExecutionResponse response =
+                codeExecutionService.runCode(
+                        1L,
+                        request("public class Main { }", "Java")
+                );
+
+        assertThat(response.status()).isEqualTo(CodeExecutionStatus.SOURCE_TOO_LARGE);
+        assertThat(response.compileOutput()).contains("20 character limit");
+        assertThat(response.testCases()).isEmpty();
+    }
+
+    @Test
+    void runCodeAppliesConfiguredJvmHeapLimit() {
+        properties.setMaxHeapMegabytes(32);
+        given(problemRepository.existsById(1L)).willReturn(true);
+        given(testCaseRepository.findByProblemId(1L))
+                .willReturn(List.of(testCase(10L, "", "true\n", false)));
+
+        CodeExecutionResponse response =
+                codeExecutionService.runCode(1L, request("""
+                        public class Main {
+                            public static void main(String[] args) {
+                                long maxMemoryMb =
+                                        Runtime.getRuntime().maxMemory()
+                                                / 1024
+                                                / 1024;
+                                System.out.println(maxMemoryMb <= 64);
+                            }
+                        }
+                        """, "Java"));
+
+        assertThat(response.status()).isEqualTo(CodeExecutionStatus.SUCCESS);
+        assertThat(response.testCases().getFirst().actualOutput())
+                .isEqualTo("true\n");
+    }
+
+    @Test
+    void runCodeTruncatesOversizedOutput() {
+        properties.setOutputLimitCharacters(10);
+        given(problemRepository.existsById(1L)).willReturn(true);
+        given(testCaseRepository.findByProblemId(1L))
+                .willReturn(List.of(testCase(10L, "", "expected", false)));
+
+        CodeExecutionResponse response =
+                codeExecutionService.runCode(1L, request("""
+                        public class Main {
+                            public static void main(String[] args) {
+                                System.out.print("abcdefghijklmnop");
+                            }
+                        }
+                        """, "Java"));
+
+        assertThat(response.status()).isEqualTo(CodeExecutionStatus.WRONG_ANSWER);
+        assertThat(response.testCases().getFirst().actualOutput())
+                .isEqualTo("abcdefghij\n... output truncated ...");
+    }
+
+    @Test
+    void runCodeUsesConfiguredTestTimeout() {
+        properties.setTestTimeoutSeconds(1);
+        given(problemRepository.existsById(1L)).willReturn(true);
+        given(testCaseRepository.findByProblemId(1L))
+                .willReturn(List.of(testCase(10L, "", "done", false)));
+
+        CodeExecutionResponse response =
+                codeExecutionService.runCode(1L, request("""
+                        public class Main {
+                            public static void main(String[] args) {
+                                while (true) {
+                                }
+                            }
+                        }
+                        """, "Java"));
+
+        assertThat(response.status())
+                .isEqualTo(CodeExecutionStatus.TIME_LIMIT_EXCEEDED);
+        assertThat(response.testCases().getFirst().status())
+                .isEqualTo(CodeExecutionTestCaseStatus.TIME_LIMIT_EXCEEDED);
+        assertThat(response.testCases().getFirst().errorOutput())
+                .contains("1 seconds");
+    }
+
+    @Test
     void runCodeRejectsUnknownProblems() {
         given(problemRepository.existsById(99L)).willReturn(false);
 
@@ -141,6 +232,10 @@ class CodeExecutionServiceTest {
         )
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Problem not found with id: 99");
+    }
+
+    private CodeExecutionProperties executionProperties() {
+        return new CodeExecutionProperties();
     }
 
     private CodeExecutionRequest request(String submittedCode, String language) {

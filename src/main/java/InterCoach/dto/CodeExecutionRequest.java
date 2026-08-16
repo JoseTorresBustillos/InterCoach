@@ -1,12 +1,10 @@
 package InterCoach.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 
 public class CodeExecutionRequest {
 
     @NotBlank
-    @Size(max = 20000)
     private String submittedCode;
 
     private String language = "Java";

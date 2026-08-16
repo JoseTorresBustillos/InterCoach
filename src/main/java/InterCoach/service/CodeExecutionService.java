@@ -1,5 +1,6 @@
 package InterCoach.service;
 
+import InterCoach.config.CodeExecutionProperties;
 import InterCoach.dto.CodeExecutionRequest;
 import InterCoach.dto.CodeExecutionResponse;
 import InterCoach.dto.CodeExecutionStatus;
@@ -28,19 +29,19 @@ public class CodeExecutionService {
     private static final String JAVA_LANGUAGE = "Java";
     private static final String MAIN_CLASS = "Main";
     private static final String SOURCE_FILE = MAIN_CLASS + ".java";
-    private static final int COMPILE_TIMEOUT_SECONDS = 5;
-    private static final int TEST_TIMEOUT_SECONDS = 2;
-    private static final int OUTPUT_LIMIT = 4000;
 
     private final ProblemRepository problemRepository;
     private final TestCaseRepository testCaseRepository;
+    private final CodeExecutionProperties properties;
 
     public CodeExecutionService(
             ProblemRepository problemRepository,
-            TestCaseRepository testCaseRepository
+            TestCaseRepository testCaseRepository,
+            CodeExecutionProperties properties
     ) {
         this.problemRepository = problemRepository;
         this.testCaseRepository = testCaseRepository;
+        this.properties = properties;
     }
 
     public CodeExecutionResponse runCode(
@@ -55,6 +56,11 @@ public class CodeExecutionService {
 
         if (!JAVA_LANGUAGE.equalsIgnoreCase(request.getLanguage())) {
             return unsupportedLanguageResponse(problemId, request.getLanguage());
+        }
+
+        if (request.getSubmittedCode().length()
+                > properties.getMaxSourceCharacters()) {
+            return sourceTooLargeResponse(problemId);
         }
 
         // User-triggered runs execute only visible cases so hidden cases stay hidden.
@@ -123,17 +129,29 @@ public class CodeExecutionService {
     }
 
     private String compile(Path workspace) throws IOException {
-        Process process = new ProcessBuilder("javac", SOURCE_FILE)
+        ProcessBuilder processBuilder = new ProcessBuilder(
+                "javac",
+                "-J-Xmx" + properties.getMaxHeapMegabytes() + "m",
+                "-J-XX:ActiveProcessorCount="
+                        + properties.getActiveProcessorCount(),
+                "-proc:none",
+                SOURCE_FILE
+        )
                 .directory(workspace.toFile())
                 .redirectErrorStream(true)
-                .redirectOutput(workspace.resolve("compile.out").toFile())
-                .start();
+                .redirectOutput(workspace.resolve("compile.out").toFile());
 
-        boolean completed = waitFor(process, COMPILE_TIMEOUT_SECONDS);
+        sanitizeEnvironment(processBuilder);
+
+        Process process = processBuilder.start();
+        boolean completed = waitFor(
+                process,
+                properties.getCompileTimeoutSeconds()
+        );
 
         if (!completed) {
             return "Compilation timed out after "
-                    + COMPILE_TIMEOUT_SECONDS
+                    + properties.getCompileTimeoutSeconds()
                     + " seconds.";
         }
 
@@ -151,15 +169,32 @@ public class CodeExecutionService {
         Path errorFile = workspace.resolve("test-" + testCase.getId() + ".err");
 
         try {
-            Process process = new ProcessBuilder("java", "-cp", ".", MAIN_CLASS)
+            ProcessBuilder processBuilder = new ProcessBuilder(
+                    "java",
+                    "-Xmx" + properties.getMaxHeapMegabytes() + "m",
+                    "-XX:ActiveProcessorCount="
+                            + properties.getActiveProcessorCount(),
+                    "-XX:+ExitOnOutOfMemoryError",
+                    "-Djava.io.tmpdir=" + workspace.toAbsolutePath(),
+                    "-Duser.home=" + workspace.toAbsolutePath(),
+                    "-cp",
+                    ".",
+                    MAIN_CLASS
+            )
                     .directory(workspace.toFile())
                     .redirectOutput(outputFile.toFile())
-                    .redirectError(errorFile.toFile())
-                    .start();
+                    .redirectError(errorFile.toFile());
+
+            sanitizeEnvironment(processBuilder);
+
+            Process process = processBuilder.start();
 
             writeInput(process, testCase.getInput());
 
-            boolean completed = waitFor(process, TEST_TIMEOUT_SECONDS);
+            boolean completed = waitFor(
+                    process,
+                    properties.getTestTimeoutSeconds()
+            );
             long durationMs = elapsedMs(startedAt);
 
             if (!completed) {
@@ -167,7 +202,7 @@ public class CodeExecutionService {
                         testCase,
                         "",
                         "Execution timed out after "
-                                + TEST_TIMEOUT_SECONDS
+                                + properties.getTestTimeoutSeconds()
                                 + " seconds.",
                         CodeExecutionTestCaseStatus.TIME_LIMIT_EXCEEDED,
                         durationMs
@@ -291,6 +326,21 @@ public class CodeExecutionService {
         );
     }
 
+    private CodeExecutionResponse sourceTooLargeResponse(Long problemId) {
+        return new CodeExecutionResponse(
+                problemId,
+                CodeExecutionStatus.SOURCE_TOO_LARGE,
+                false,
+                0,
+                0,
+                0,
+                "Submitted source exceeds the "
+                        + properties.getMaxSourceCharacters()
+                        + " character limit.",
+                List.of()
+        );
+    }
+
     private CodeExecutionResponse noTestsResponse(Long problemId) {
         return new CodeExecutionResponse(
                 problemId,
@@ -326,6 +376,14 @@ public class CodeExecutionService {
         }
     }
 
+    private void sanitizeEnvironment(ProcessBuilder processBuilder) {
+        // Remove JVM injection hooks from the child process environment.
+        processBuilder.environment().remove("CLASSPATH");
+        processBuilder.environment().remove("JAVA_TOOL_OPTIONS");
+        processBuilder.environment().remove("_JAVA_OPTIONS");
+        processBuilder.environment().remove("JDK_JAVA_OPTIONS");
+    }
+
     private String readLimited(Path path) throws IOException {
         if (!Files.exists(path)) {
             return "";
@@ -333,11 +391,11 @@ public class CodeExecutionService {
 
         String output = Files.readString(path, StandardCharsets.UTF_8);
 
-        if (output.length() <= OUTPUT_LIMIT) {
+        if (output.length() <= properties.getOutputLimitCharacters()) {
             return output;
         }
 
-        return output.substring(0, OUTPUT_LIMIT)
+        return output.substring(0, properties.getOutputLimitCharacters())
                 + "\n... output truncated ...";
     }
 
