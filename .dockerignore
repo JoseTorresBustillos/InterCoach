@@ -1,0 +1,16 @@
+.git
+.github
+.idea
+.mvn/wrapper/maven-wrapper.jar
+.vscode
+.env
+.env.*
+!.env.example
+target
+build
+node_modules
+*.iml
+*.iws
+*.ipr
+*.md
+.DS_Store

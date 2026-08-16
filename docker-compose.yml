@@ -11,5 +11,22 @@ services:
     volumes:
       - codecoach_pgdata:/var/lib/postgresql/data
 
+  app:
+    build:
+      context: .
+    profiles:
+      - app
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/codecoach
+      SPRING_DATASOURCE_USERNAME: codecoach
+      SPRING_DATASOURCE_PASSWORD: codecoach
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-change-this-development-secret-before-production-12345}
+      INTERCOACH_EXECUTION_MODE: local
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
 volumes:
   codecoach_pgdata:
