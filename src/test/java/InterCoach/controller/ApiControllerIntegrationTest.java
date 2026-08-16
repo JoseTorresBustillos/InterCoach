@@ -5,6 +5,7 @@ import InterCoach.model.Difficulty;
 import InterCoach.model.Problem;
 import InterCoach.model.Submission;
 import InterCoach.model.SubmissionStatus;
+import InterCoach.model.TestCase;
 import InterCoach.repository.AppUserRepository;
 import InterCoach.repository.MockInterviewRepository;
 import InterCoach.repository.ProblemRepository;
@@ -279,6 +280,35 @@ class ApiControllerIntegrationTest {
                 ));
     }
 
+    @Test
+    void codeExecutionEndpointAcceptsValidBearerToken() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(user).value();
+
+        given(appUserRepository.findByUsernameIgnoreCase("coder"))
+                .willReturn(Optional.of(user));
+        given(problemRepository.existsById(1L)).willReturn(true);
+        given(testCaseRepository.findByProblemId(1L))
+                .willReturn(List.of(testCase(10L, "hello", "hello\n", false)));
+
+        mockMvc.perform(post("/api/problems/1/run")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "language": "Java",
+                                  "submittedCode": "public class Main { public static void main(String[] args) { java.util.Scanner scanner = new java.util.Scanner(System.in); System.out.println(scanner.nextLine()); } }"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.problemId").value(1))
+                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.allPassed").value(true))
+                .andExpect(jsonPath("$.totalTests").value(1))
+                .andExpect(jsonPath("$.testCases[0].status").value("PASSED"));
+    }
+
     private AppUser user(String username) {
         AppUser user = new AppUser();
         ReflectionTestUtils.setField(user, "id", 42L);
@@ -313,6 +343,20 @@ class ApiControllerIntegrationTest {
         submission.setSubmittedCode("class Solution {}");
         submission.setLanguage("Java");
         return submission;
+    }
+
+    private TestCase testCase(
+            Long id,
+            String input,
+            String expectedOutput,
+            boolean hidden
+    ) {
+        TestCase testCase = new TestCase();
+        ReflectionTestUtils.setField(testCase, "id", id);
+        testCase.setInput(input);
+        testCase.setExpectedOutput(expectedOutput);
+        testCase.setHidden(hidden);
+        return testCase;
     }
 
     private AppUser savedUser(AppUser user) {
