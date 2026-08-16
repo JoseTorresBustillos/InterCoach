@@ -70,17 +70,24 @@ public class ProblemVectorService {
     public List<ProblemVectorSearchResultResponse> searchProblems(
             ProblemVectorSearchRequest request
     ) {
+        return searchProblemDocuments(
+                request.getQuery(),
+                resolveTopK(request.getTopK())
+        )
+                .stream()
+                .map(this::toSearchResult)
+                .toList();
+    }
+
+    public List<Document> searchProblemDocuments(String query, int topK) {
         SearchRequest searchRequest = SearchRequest.builder()
-                .query(request.getQuery().trim())
-                .topK(resolveTopK(request.getTopK()))
+                .query(query.trim())
+                .topK(topK)
                 .similarityThresholdAll()
                 .filterExpression(problemDocumentFilter())
                 .build();
 
-        return vectorStore.similaritySearch(searchRequest)
-                .stream()
-                .map(this::toSearchResult)
-                .toList();
+        return vectorStore.similaritySearch(searchRequest);
     }
 
     private void replaceDocuments(List<Document> documents) {

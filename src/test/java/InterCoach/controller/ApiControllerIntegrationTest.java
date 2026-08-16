@@ -242,6 +242,43 @@ class ApiControllerIntegrationTest {
                 .andExpect(jsonPath("$[0].score").value(0.93));
     }
 
+    @Test
+    void studyAssistantEndpointAcceptsValidBearerToken() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(user).value();
+
+        given(appUserRepository.findByUsernameIgnoreCase("coder"))
+                .willReturn(Optional.of(user));
+        given(vectorStore.similaritySearch(any(SearchRequest.class)))
+                .willReturn(List.of(Document.builder()
+                        .id("problem-1")
+                        .text("Title: Two Sum\nDescription: Hash map practice")
+                        .metadata(Map.of(
+                                "documentType", "problem",
+                                "problemId", 1L,
+                                "title", "Two Sum",
+                                "difficulty", "EASY",
+                                "category", "Arrays",
+                                "tags", "hash-map"
+                        ))
+                        .score(0.93)
+                        .build()));
+
+        mockMvc.perform(post("/api/study-assistant/ask")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "question": "How should I solve pair sum problems?"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.answer").value(
+                        "Use retrieved problem context."
+                ));
+    }
+
     private AppUser user(String username) {
         AppUser user = new AppUser();
         ReflectionTestUtils.setField(user, "id", 42L);
@@ -289,7 +326,21 @@ class ApiControllerIntegrationTest {
 
         @Bean
         ChatClient.Builder chatClientBuilder() {
-            return mock(ChatClient.Builder.class);
+            ChatClient.Builder builder = mock(ChatClient.Builder.class);
+            ChatClient chatClient = mock(ChatClient.class);
+            ChatClient.ChatClientRequestSpec requestSpec =
+                    mock(ChatClient.ChatClientRequestSpec.class);
+            ChatClient.CallResponseSpec callResponseSpec =
+                    mock(ChatClient.CallResponseSpec.class);
+
+            given(builder.build()).willReturn(chatClient);
+            given(chatClient.prompt()).willReturn(requestSpec);
+            given(requestSpec.user(any(String.class))).willReturn(requestSpec);
+            given(requestSpec.call()).willReturn(callResponseSpec);
+            given(callResponseSpec.content())
+                    .willReturn("Use retrieved problem context.");
+
+            return builder;
         }
     }
 }
