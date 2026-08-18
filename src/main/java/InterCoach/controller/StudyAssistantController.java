@@ -4,6 +4,7 @@ import InterCoach.dto.StudyAssistantRequest;
 import InterCoach.dto.StudyAssistantResponse;
 import InterCoach.service.StudyAssistantService;
 import jakarta.validation.Valid;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,7 +18,13 @@ public class StudyAssistantController {
     }
 
     @PostMapping("/ask")
-    public StudyAssistantResponse askQuestion(@Valid @RequestBody StudyAssistantRequest request) {
-        return studyAssistantService.askQuestion(request.getQuestion());
+    public StudyAssistantResponse askQuestion(
+            @Valid @RequestBody StudyAssistantRequest request,
+            Authentication authentication
+    ) {
+        return studyAssistantService.askQuestionForUser(
+                request.getQuestion(),
+                authentication.getName()
+        );
     }
 }

@@ -248,9 +248,14 @@ class ApiControllerIntegrationTest {
         AppUser user = user("coder");
         user.setPasswordHash(passwordEncoder.encode("password123"));
         String token = jwtService.generateToken(user).value();
+        Problem problem = problem(1L, "Two Sum", Difficulty.EASY, "Arrays");
+        Submission history = submission(problem, SubmissionStatus.FAILED);
+        history.setBugs("Misses duplicate complements.");
 
         given(appUserRepository.findByUsernameIgnoreCase("coder"))
                 .willReturn(Optional.of(user));
+        given(submissionRepository.findByUserIdOrderByCreatedAtDesc(42L))
+                .willReturn(List.of(history));
         given(vectorStore.similaritySearch(any(SearchRequest.class)))
                 .willReturn(List.of(Document.builder()
                         .id("problem-1")
@@ -277,7 +282,14 @@ class ApiControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.answer").value(
                         "Use retrieved problem context."
-                ));
+                ))
+                .andExpect(jsonPath("$.citations[0].label").value("P1"))
+                .andExpect(jsonPath("$.citations[0].type").value("PROBLEM"))
+                .andExpect(jsonPath("$.citations[0].problemId").value(1))
+                .andExpect(jsonPath("$.citations[0].title").value("Two Sum"))
+                .andExpect(jsonPath("$.citations[1].label").value("H1"))
+                .andExpect(jsonPath("$.citations[1].type").value("USER_HISTORY"))
+                .andExpect(jsonPath("$.citations[1].submissionStatus").value("FAILED"));
     }
 
     @Test
