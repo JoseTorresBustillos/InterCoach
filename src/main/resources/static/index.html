@@ -4,9 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>InterCoach</title>
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
+    <div id="scroll-progress" class="scroll-progress" aria-hidden="true"></div>
     <div class="app-shell">
         <aside class="sidebar" aria-label="Workspace">
             <div class="brand">
@@ -65,7 +67,7 @@
                 <button id="refresh-data" class="secondary-action" type="button">Refresh</button>
             </header>
 
-            <section id="progress" class="metric-grid" aria-label="Progress metrics">
+            <section id="progress" class="metric-grid reveal" aria-label="Progress metrics">
                 <article class="metric-tile accent-blue">
                     <p>Total submissions</p>
                     <strong id="metric-submissions">0</strong>
@@ -84,8 +86,8 @@
                 </article>
             </section>
 
-            <section id="analytics" class="dashboard-grid" aria-label="Analytics">
-                <article class="workspace-card">
+            <section id="analytics" class="dashboard-grid reveal" aria-label="Analytics">
+                <article class="workspace-card reveal">
                     <div class="card-heading">
                         <div>
                             <p class="eyebrow">Activity</p>
@@ -96,7 +98,7 @@
                     <div id="trend-chart" class="trend-chart"></div>
                 </article>
 
-                <article class="workspace-card">
+                <article class="workspace-card reveal">
                     <div class="card-heading">
                         <div>
                             <p class="eyebrow">Focus</p>
@@ -117,8 +119,8 @@
                 </article>
             </section>
 
-            <section id="recommendations" class="dashboard-grid" aria-label="Practice">
-                <article class="workspace-card">
+            <section id="recommendations" class="dashboard-grid reveal" aria-label="Practice">
+                <article class="workspace-card reveal">
                     <div class="card-heading">
                         <div>
                             <p class="eyebrow">Next practice</p>
@@ -128,7 +130,7 @@
                     <div id="recommendation-list" class="recommendation-list"></div>
                 </article>
 
-                <article id="assistant" class="workspace-card">
+                <article id="assistant" class="workspace-card reveal">
                     <div class="card-heading">
                         <div>
                             <p class="eyebrow">Study assistant</p>

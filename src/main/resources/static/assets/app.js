@@ -23,6 +23,9 @@ const elements = {
     sessionLabel: document.querySelector("#session-label"),
     signOut: document.querySelector("#sign-out"),
     refreshData: document.querySelector("#refresh-data"),
+    scrollProgress: document.querySelector("#scroll-progress"),
+    topbar: document.querySelector(".topbar"),
+    navLinks: document.querySelectorAll(".nav-list a"),
     connectionCopy: document.querySelector("#connection-copy"),
     welcomeHeading: document.querySelector("#welcome-heading"),
     metricSubmissions: document.querySelector("#metric-submissions"),
@@ -48,6 +51,7 @@ elements.signOut.addEventListener("click", signOut);
 elements.refreshData.addEventListener("click", loadWorkspace);
 elements.assistantForm.addEventListener("submit", handleAssistantQuestion);
 
+setupScrollInteractions();
 renderSession();
 renderWorkspace();
 
@@ -390,4 +394,49 @@ function escapeHtml(value) {
         .replaceAll(">", "&gt;")
         .replaceAll("\"", "&quot;")
         .replaceAll("'", "&#039;");
+}
+
+function setupScrollInteractions() {
+    document.body.classList.add("animations-ready");
+
+    const revealElements = document.querySelectorAll(".reveal");
+
+    if ("IntersectionObserver" in window) {
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add("is-visible");
+                }
+            });
+        }, {
+            threshold: 0.16
+        });
+
+        revealElements.forEach((element) => revealObserver.observe(element));
+    } else {
+        revealElements.forEach((element) => element.classList.add("is-visible"));
+    }
+
+    window.addEventListener("scroll", updateScrollState, {passive: true});
+    window.addEventListener("resize", updateScrollState);
+    updateScrollState();
+}
+
+function updateScrollState() {
+    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    const scrollDepth = maxScroll > 0 ? window.scrollY / maxScroll : 0;
+
+    elements.scrollProgress.style.transform = `scaleX(${Math.min(scrollDepth, 1)})`;
+    elements.topbar.classList.toggle("scrolled", window.scrollY > 12);
+
+    const currentSection = Array.from(document.querySelectorAll("main section"))
+        .filter((section) => section.getBoundingClientRect().top <= 180)
+        .at(-1);
+
+    elements.navLinks.forEach((link) => {
+        link.classList.toggle(
+            "active",
+            currentSection && link.getAttribute("href") === `#${currentSection.id}`
+        );
+    });
 }
