@@ -27,15 +27,18 @@ public class RecommendationService {
     private final ProblemRepository problemRepository;
     private final SubmissionRepository submissionRepository;
     private final AppUserRepository appUserRepository;
+    private final SubmissionInsightService submissionInsightService;
 
     public RecommendationService(
             ProblemRepository problemRepository,
             SubmissionRepository submissionRepository,
-            AppUserRepository appUserRepository
+            AppUserRepository appUserRepository,
+            SubmissionInsightService submissionInsightService
     ) {
         this.problemRepository = problemRepository;
         this.submissionRepository = submissionRepository;
         this.appUserRepository = appUserRepository;
+        this.submissionInsightService = submissionInsightService;
     }
 
     @Transactional(readOnly = true)
@@ -115,14 +118,14 @@ public class RecommendationService {
             if (submission.getStatus() == SubmissionStatus.FAILED) {
                 addWeaknessScore(
                         weaknessScores,
-                        categoryFor(submission),
+                        submissionInsightService.categoryFor(submission),
                         3
                 );
             } else if (submission.getStatus() == SubmissionStatus.REVIEWED
-                    && hasSignsOfWeakness(submission)) {
+                    && submissionInsightService.isWeakSubmission(submission)) {
                 addWeaknessScore(
                         weaknessScores,
-                        categoryFor(submission),
+                        submissionInsightService.categoryFor(submission),
                         2
                 );
             }
@@ -148,7 +151,7 @@ public class RecommendationService {
 
     private Set<Long> strongReviewedProblemIds(List<Submission> submissions) {
         Set<Long> weakProblemIds = submissions.stream()
-                .filter(this::isWeakSubmission)
+                .filter(submissionInsightService::isWeakSubmission)
                 .map(Submission::getProblem)
                 .filter(Objects::nonNull)
                 .map(Problem::getId)
@@ -156,47 +159,13 @@ public class RecommendationService {
                 .collect(java.util.stream.Collectors.toSet());
 
         return submissions.stream()
-                .filter(this::isStrongReviewedSubmission)
+                .filter(submissionInsightService::isStrongReviewedSubmission)
                 .map(Submission::getProblem)
                 .filter(Objects::nonNull)
                 .map(Problem::getId)
                 .filter(Objects::nonNull)
                 .filter(problemId -> !weakProblemIds.contains(problemId))
                 .collect(java.util.stream.Collectors.toSet());
-    }
-
-    private boolean isWeakSubmission(Submission submission) {
-        return submission.getStatus() == SubmissionStatus.FAILED
-                || (submission.getStatus() == SubmissionStatus.REVIEWED
-                        && hasSignsOfWeakness(submission));
-    }
-
-    private boolean isStrongReviewedSubmission(Submission submission) {
-        return submission.getStatus() == SubmissionStatus.REVIEWED
-                && !hasSignsOfWeakness(submission);
-    }
-
-    private boolean hasSignsOfWeakness(Submission submission) {
-        String correctness = safeLower(submission.getCorrectness());
-        String bugs = safeLower(submission.getBugs());
-
-        return correctness.contains("incorrect")
-                || correctness.contains("partial")
-                || correctness.contains("partially")
-                || hasBugSignals(bugs);
-    }
-
-    private boolean hasBugSignals(String bugs) {
-        if (bugs.isBlank()
-                || bugs.contains("no bug")
-                || bugs.contains("no issue")
-                || bugs.equals("none")) {
-            return false;
-        }
-
-        return bugs.contains("bug")
-                || bugs.contains("issue")
-                || bugs.contains("fails");
     }
 
     private void addWeaknessScore(
@@ -248,12 +217,6 @@ public class RecommendationService {
                 : problem.getDifficulty().ordinal();
     }
 
-    private String categoryFor(Submission submission) {
-        Problem problem = submission.getProblem();
-
-        return problem == null ? null : problem.getCategory();
-    }
-
     private RecommendationResponse toResponse(Problem problem, String reason) {
         return new RecommendationResponse(
                 problem.getId(),
@@ -263,9 +226,5 @@ public class RecommendationService {
                 problem.getTags(),
                 reason
         );
-    }
-
-    private String safeLower(String value) {
-        return value == null ? "" : value.toLowerCase();
     }
 }

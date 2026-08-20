@@ -44,7 +44,8 @@ class RecommendationServiceTest {
         recommendationService = new RecommendationService(
                 problemRepository,
                 submissionRepository,
-                appUserRepository
+                appUserRepository,
+                new SubmissionInsightService()
         );
     }
 
