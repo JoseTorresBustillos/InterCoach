@@ -32,6 +32,13 @@ public class SecurityConfig {
                         .accessDeniedHandler(securityErrorHandler)
                 )
                 .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/",
+                                "/index.html",
+                                "/assets/**"
+                        )
+                        .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/health")
                         .permitAll()
                         .requestMatchers("/api/auth/**")

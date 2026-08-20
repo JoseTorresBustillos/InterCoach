@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>InterCoach</title>
+    <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar" aria-label="Workspace">
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true">IC</div>
+                <div>
+                    <h1>InterCoach</h1>
+                    <p id="connection-copy">Ready</p>
+                </div>
+            </div>
+
+            <div class="auth-panel">
+                <div class="mode-switch" role="tablist" aria-label="Authentication mode">
+                    <button class="mode-button active" type="button" data-auth-mode="login">Login</button>
+                    <button class="mode-button" type="button" data-auth-mode="register">Register</button>
+                </div>
+
+                <form id="auth-form" class="auth-form">
+                    <label>
+                        Username
+                        <input id="username" name="username" autocomplete="username" required>
+                    </label>
+                    <label id="email-field" class="hidden">
+                        Email
+                        <input id="email" name="email" type="email" autocomplete="email">
+                    </label>
+                    <label>
+                        Password
+                        <input id="password" name="password" type="password" autocomplete="current-password" required>
+                    </label>
+                    <button class="primary-action" type="submit">
+                        <span id="auth-action-label">Login</span>
+                    </button>
+                </form>
+
+                <div class="session-row">
+                    <span id="session-dot" class="status-dot"></span>
+                    <span id="session-label">Signed out</span>
+                </div>
+                <button id="sign-out" class="secondary-action hidden" type="button">Sign out</button>
+            </div>
+
+            <nav class="nav-list" aria-label="Primary">
+                <a href="#progress">Progress</a>
+                <a href="#analytics">Analytics</a>
+                <a href="#recommendations">Practice</a>
+                <a href="#assistant">Assistant</a>
+            </nav>
+        </aside>
+
+        <main class="workspace">
+            <header class="topbar">
+                <div>
+                    <p class="eyebrow">Practice Workspace</p>
+                    <h2 id="welcome-heading">Coding interview dashboard</h2>
+                </div>
+                <button id="refresh-data" class="secondary-action" type="button">Refresh</button>
+            </header>
+
+            <section id="progress" class="metric-grid" aria-label="Progress metrics">
+                <article class="metric-tile accent-blue">
+                    <p>Total submissions</p>
+                    <strong id="metric-submissions">0</strong>
+                </article>
+                <article class="metric-tile accent-green">
+                    <p>Reviewed</p>
+                    <strong id="metric-reviewed">0</strong>
+                </article>
+                <article class="metric-tile accent-coral">
+                    <p>Weak rate</p>
+                    <strong id="metric-weak-rate">0%</strong>
+                </article>
+                <article class="metric-tile accent-violet">
+                    <p>Mock interviews</p>
+                    <strong id="metric-interviews">0</strong>
+                </article>
+            </section>
+
+            <section id="analytics" class="dashboard-grid" aria-label="Analytics">
+                <article class="workspace-card">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Activity</p>
+                            <h3>Daily trend</h3>
+                        </div>
+                        <span id="review-rate" class="pill">0% reviewed</span>
+                    </div>
+                    <div id="trend-chart" class="trend-chart"></div>
+                </article>
+
+                <article class="workspace-card">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Focus</p>
+                            <h3>Category signals</h3>
+                        </div>
+                    </div>
+                    <div class="signal-row">
+                        <div>
+                            <span>Strongest</span>
+                            <strong id="strongest-category">-</strong>
+                        </div>
+                        <div>
+                            <span>Weakest</span>
+                            <strong id="weakest-category">-</strong>
+                        </div>
+                    </div>
+                    <div id="category-breakdown" class="breakdown-list"></div>
+                </article>
+            </section>
+
+            <section id="recommendations" class="dashboard-grid" aria-label="Practice">
+                <article class="workspace-card">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Next practice</p>
+                            <h3>Recommendations</h3>
+                        </div>
+                    </div>
+                    <div id="recommendation-list" class="recommendation-list"></div>
+                </article>
+
+                <article id="assistant" class="workspace-card">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Study assistant</p>
+                            <h3>Ask a question</h3>
+                        </div>
+                    </div>
+                    <form id="assistant-form" class="assistant-form">
+                        <label for="assistant-question">Question</label>
+                        <textarea id="assistant-question" rows="4" placeholder="How should I approach graph traversal?"></textarea>
+                        <button class="primary-action" type="submit">Ask</button>
+                    </form>
+                    <div id="assistant-answer" class="assistant-answer"></div>
+                </article>
+            </section>
+        </main>
+    </div>
+
+    <script src="/assets/app.js"></script>
+</body>
+</html>
