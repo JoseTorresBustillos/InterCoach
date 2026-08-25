@@ -8,7 +8,8 @@ const state = {
     session: loadSession(),
     dashboard: null,
     analytics: null,
-    recommendations: []
+    recommendations: [],
+    executionStatus: null
 };
 
 const elements = {
@@ -40,7 +41,19 @@ const elements = {
     recommendationList: document.querySelector("#recommendation-list"),
     assistantForm: document.querySelector("#assistant-form"),
     assistantQuestion: document.querySelector("#assistant-question"),
-    assistantAnswer: document.querySelector("#assistant-answer")
+    assistantAnswer: document.querySelector("#assistant-answer"),
+    profileForm: document.querySelector("#profile-form"),
+    profileUsername: document.querySelector("#profile-username"),
+    profileEmail: document.querySelector("#profile-email"),
+    profileMessage: document.querySelector("#profile-message"),
+    passwordForm: document.querySelector("#password-form"),
+    currentPassword: document.querySelector("#current-password"),
+    newPassword: document.querySelector("#new-password"),
+    passwordMessage: document.querySelector("#password-message"),
+    operationsSection: document.querySelector("#operations"),
+    operationsNav: document.querySelector("#operations-nav"),
+    operationsMode: document.querySelector("#operations-mode"),
+    operationsGrid: document.querySelector("#operations-grid")
 };
 
 elements.authButtons.forEach((button) => {
@@ -50,6 +63,8 @@ elements.authForm.addEventListener("submit", handleAuth);
 elements.signOut.addEventListener("click", signOut);
 elements.refreshData.addEventListener("click", loadWorkspace);
 elements.assistantForm.addEventListener("submit", handleAssistantQuestion);
+elements.profileForm.addEventListener("submit", handleProfileUpdate);
+elements.passwordForm.addEventListener("submit", handlePasswordChange);
 
 setupScrollInteractions();
 renderSession();
@@ -127,7 +142,10 @@ function signOut() {
     state.dashboard = null;
     state.analytics = null;
     state.recommendations = [];
+    state.executionStatus = null;
     elements.assistantAnswer.innerHTML = "";
+    clearFormStatus(elements.profileMessage);
+    clearFormStatus(elements.passwordMessage);
     renderSession();
     renderWorkspace();
     setConnection("Signed out");
@@ -143,20 +161,34 @@ async function loadWorkspace() {
     const userId = state.session.user.id;
 
     try {
-        const [dashboard, analytics, recommendations] = await Promise.all([
+        const [dashboard, analytics, recommendations, executionStatus] = await Promise.all([
             api(`/api/users/${userId}/dashboard`),
             api(`/api/users/${userId}/analytics`),
-            api(`/api/users/${userId}/recommendations`)
+            api(`/api/users/${userId}/recommendations`),
+            loadExecutionStatus()
         ]);
 
         state.dashboard = dashboard;
         state.analytics = analytics;
         state.recommendations = recommendations;
+        state.executionStatus = executionStatus;
         renderWorkspace();
         setConnection("Connected");
     } catch (error) {
         setConnection(error.message);
         renderError(error.message);
+    }
+}
+
+async function loadExecutionStatus() {
+    try {
+        return await api("/api/admin/execution/status");
+    } catch (error) {
+        if (error.status === 401 || error.status === 403) {
+            return null;
+        }
+
+        throw error;
     }
 }
 
@@ -188,6 +220,63 @@ async function handleAssistantQuestion(event) {
     }
 }
 
+async function handleProfileUpdate(event) {
+    event.preventDefault();
+
+    if (!state.session) {
+        renderFormStatus(elements.profileMessage, "Sign in first.", true);
+        return;
+    }
+
+    try {
+        const response = await api("/api/users/me", {
+            method: "PATCH",
+            body: JSON.stringify({
+                username: elements.profileUsername.value.trim(),
+                email: elements.profileEmail.value.trim()
+            })
+        });
+
+        saveSession({
+            token: response.token,
+            user: response.user
+        });
+        renderFormStatus(elements.profileMessage, "Profile saved.");
+        setConnection("Profile saved");
+        await loadWorkspace();
+    } catch (error) {
+        renderFormStatus(elements.profileMessage, error.message, true);
+        setConnection(error.message);
+    }
+}
+
+async function handlePasswordChange(event) {
+    event.preventDefault();
+
+    if (!state.session) {
+        renderFormStatus(elements.passwordMessage, "Sign in first.", true);
+        return;
+    }
+
+    try {
+        await api("/api/users/me/password", {
+            method: "PATCH",
+            body: JSON.stringify({
+                currentPassword: elements.currentPassword.value,
+                newPassword: elements.newPassword.value
+            })
+        });
+
+        elements.currentPassword.value = "";
+        elements.newPassword.value = "";
+        renderFormStatus(elements.passwordMessage, "Password updated.");
+        setConnection("Password updated");
+    } catch (error) {
+        renderFormStatus(elements.passwordMessage, error.message, true);
+        setConnection(error.message);
+    }
+}
+
 async function api(path, options = {}) {
     const headers = new Headers(options.headers || {});
 
@@ -204,12 +293,36 @@ async function api(path, options = {}) {
         headers
     });
 
+    const text = await response.text();
+
     if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.message || `Request failed with ${response.status}`);
+        const errorBody = parseJson(text) || {};
+        const error = new Error(
+            errorBody.message || `Request failed with ${response.status}`
+        );
+        error.status = response.status;
+        throw error;
     }
 
-    return response.json();
+    if (!text) {
+        return null;
+    }
+
+    const body = parseJson(text);
+
+    if (!body) {
+        throw new Error("Response was not valid JSON.");
+    }
+
+    return body;
+}
+
+function parseJson(text) {
+    try {
+        return JSON.parse(text);
+    } catch (error) {
+        return null;
+    }
 }
 
 function renderSession() {
@@ -222,6 +335,7 @@ function renderSession() {
     elements.welcomeHeading.textContent = username
         ? `${username}'s interview workspace`
         : "Coding interview dashboard";
+    renderAccount();
 }
 
 function renderWorkspace() {
@@ -239,6 +353,36 @@ function renderWorkspace() {
     renderTrend(analytics.activityTrend || []);
     renderCategoryBreakdown(analytics.categoryBreakdown || []);
     renderRecommendations(state.recommendations || []);
+    renderOperations();
+}
+
+function renderAccount() {
+    const user = state.session?.user;
+    const disabled = !user;
+
+    elements.profileUsername.disabled = disabled;
+    elements.profileEmail.disabled = disabled;
+    elements.currentPassword.disabled = disabled;
+    elements.newPassword.disabled = disabled;
+    elements.profileForm.querySelector("button").disabled = disabled;
+    elements.passwordForm.querySelector("button").disabled = disabled;
+
+    if (!user) {
+        elements.profileUsername.value = "";
+        elements.profileEmail.value = "";
+        elements.currentPassword.value = "";
+        elements.newPassword.value = "";
+        renderFormStatus(elements.profileMessage, "Signed out.");
+        clearFormStatus(elements.passwordMessage);
+        return;
+    }
+
+    elements.profileUsername.value = user.username || "";
+    elements.profileEmail.value = user.email || "";
+
+    if (elements.profileMessage.textContent === "Signed out.") {
+        clearFormStatus(elements.profileMessage);
+    }
 }
 
 function renderTrend(days) {
@@ -337,6 +481,50 @@ function renderRecommendations(recommendations) {
     });
 }
 
+function renderOperations() {
+    const status = state.executionStatus;
+    const visible = Boolean(status);
+
+    elements.operationsSection.classList.toggle("hidden", !visible);
+    elements.operationsNav.classList.toggle("hidden", !visible);
+
+    if (!visible) {
+        elements.operationsGrid.innerHTML = "";
+        elements.operationsMode.textContent = "-";
+        return;
+    }
+
+    elements.operationsMode.textContent = status.mode || "-";
+    elements.operationsGrid.innerHTML = [
+        operationRow("Language", status.supportedLanguage),
+        operationRow("Compile timeout", seconds(status.compileTimeoutSeconds)),
+        operationRow("Test timeout", seconds(status.testTimeoutSeconds)),
+        operationRow("Source limit", characters(status.maxSourceCharacters)),
+        operationRow("Output limit", characters(status.outputLimitCharacters)),
+        operationRow("JVM heap", megabytes(status.maxHeapMegabytes)),
+        operationRow("Active processors", number(status.activeProcessorCount)),
+        operationRow("Visible tests", status.visibleTestCasesOnly ? "Only" : "All"),
+        operationRow("Workspace", status.temporaryWorkspacePerRun ? "Temporary" : "Shared"),
+        operationRow("Environment", status.childEnvironmentSanitized ? "Sanitized" : "Inherited"),
+        operationRow("Docker image", status.docker?.image),
+        operationRow("Docker CPU", number(status.docker?.cpuCount)),
+        operationRow("Docker memory", megabytes(status.docker?.memoryMegabytes)),
+        operationRow("Docker tmpfs", megabytes(status.docker?.tmpfsMegabytes)),
+        operationRow("Docker PIDs", number(status.docker?.pidsLimit)),
+        operationRow("Docker network", status.docker?.networkDisabled ? "Disabled" : "Enabled"),
+        operationRow("Docker root", status.docker?.readOnlyRootFilesystem ? "Read-only" : "Writable")
+    ].join("");
+}
+
+function operationRow(label, value) {
+    return `
+        <div class="operation-row">
+            <span>${escapeHtml(label)}</span>
+            <strong>${escapeHtml(value || "-")}</strong>
+        </div>
+    `;
+}
+
 function renderAssistantAnswer(response) {
     const citations = response.citations || [];
     const citationHtml = citations.map((citation) => {
@@ -364,6 +552,16 @@ function renderEmpty(target, message, isError = false) {
     target.innerHTML = `<p class="${isError ? "error-copy" : "empty-copy"}">${escapeHtml(message)}</p>`;
 }
 
+function renderFormStatus(target, message, isError = false) {
+    target.classList.toggle("error", isError);
+    target.textContent = message;
+}
+
+function clearFormStatus(target) {
+    target.classList.remove("error");
+    target.textContent = "";
+}
+
 function setConnection(message) {
     elements.connectionCopy.textContent = message;
 }
@@ -374,6 +572,18 @@ function percent(value) {
 
 function number(value) {
     return Number(value || 0).toLocaleString();
+}
+
+function seconds(value) {
+    return `${number(value)}s`;
+}
+
+function characters(value) {
+    return `${number(value)} chars`;
+}
+
+function megabytes(value) {
+    return `${number(value)} MB`;
 }
 
 function formatDate(value) {
@@ -429,9 +639,14 @@ function updateScrollState() {
     elements.scrollProgress.style.transform = `scaleX(${Math.min(scrollDepth, 1)})`;
     elements.topbar.classList.toggle("scrolled", window.scrollY > 12);
 
-    const currentSection = Array.from(document.querySelectorAll("main section"))
+    const visibleSections = Array.from(document.querySelectorAll("main section:not(.hidden)"));
+    let currentSection = visibleSections
         .filter((section) => section.getBoundingClientRect().top <= 180)
         .at(-1);
+
+    if (scrollDepth > 0.95) {
+        currentSection = visibleSections.at(-1) || currentSection;
+    }
 
     elements.navLinks.forEach((link) => {
         link.classList.toggle(

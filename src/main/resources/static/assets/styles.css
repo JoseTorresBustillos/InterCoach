@@ -41,6 +41,13 @@ textarea {
     font: inherit;
 }
 
+input:disabled,
+textarea:disabled,
+button:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+}
+
 button {
     cursor: pointer;
 }
@@ -55,6 +62,7 @@ textarea,
 .trend-row,
 .breakdown-row,
 .recommendation-row,
+.operation-row,
 .signal-row div {
     transition:
         background-color 180ms ease,
@@ -203,7 +211,8 @@ textarea,
 }
 
 .auth-form,
-.assistant-form {
+.assistant-form,
+.account-form {
     display: grid;
     gap: 12px;
 }
@@ -372,6 +381,10 @@ textarea:focus {
     gap: 16px;
 }
 
+.wide-card {
+    grid-column: 1 / -1;
+}
+
 .workspace-card {
     display: grid;
     gap: 18px;
@@ -403,14 +416,20 @@ textarea:focus {
 .trend-chart,
 .breakdown-list,
 .recommendation-list,
-.assistant-answer {
+.assistant-answer,
+.operations-grid {
     display: grid;
     gap: 10px;
 }
 
+.operations-grid {
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
 .trend-row,
 .breakdown-row,
-.recommendation-row {
+.recommendation-row,
+.operation-row {
     display: grid;
     gap: 8px;
     padding: 12px;
@@ -422,6 +441,7 @@ textarea:focus {
 .trend-row:hover,
 .breakdown-row:hover,
 .recommendation-row:hover,
+.operation-row:hover,
 .signal-row div:hover {
     border-color: rgba(196, 138, 97, 0.42);
     box-shadow: var(--glow-copper);
@@ -430,13 +450,20 @@ textarea:focus {
 
 .trend-meta,
 .breakdown-meta,
-.recommendation-meta {
+.recommendation-meta,
+.operation-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     color: var(--muted);
     font-size: 0.86rem;
+}
+
+.operation-row strong {
+    color: #fff6e8;
+    overflow-wrap: anywhere;
+    text-align: right;
 }
 
 .trend-track,
@@ -506,7 +533,8 @@ textarea:focus {
 }
 
 .empty-copy,
-.error-copy {
+.error-copy,
+.form-status {
     margin: 0;
     padding: 14px;
     border: 1px dashed var(--line);
@@ -514,7 +542,19 @@ textarea:focus {
     background: rgba(11, 15, 12, 0.42);
 }
 
-.error-copy {
+.form-status:empty {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.form-status {
+    color: #dceccc;
+}
+
+.error-copy,
+.form-status.error {
     color: #ffd1bf;
     border-color: rgba(216, 132, 104, 0.42);
     background: rgba(88, 36, 24, 0.24);

@@ -55,6 +55,8 @@
                 <a href="#analytics">Analytics</a>
                 <a href="#recommendations">Practice</a>
                 <a href="#assistant">Assistant</a>
+                <a href="#account">Account</a>
+                <a id="operations-nav" class="hidden" href="#operations">Operations</a>
             </nav>
         </aside>
 
@@ -143,6 +145,63 @@
                         <button class="primary-action" type="submit">Ask</button>
                     </form>
                     <div id="assistant-answer" class="assistant-answer"></div>
+                </article>
+            </section>
+
+            <section id="account" class="dashboard-grid reveal" aria-label="Account">
+                <article class="workspace-card reveal">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Account</p>
+                            <h3>Profile</h3>
+                        </div>
+                    </div>
+                    <form id="profile-form" class="account-form">
+                        <label>
+                            Username
+                            <input id="profile-username" name="username" autocomplete="username" required>
+                        </label>
+                        <label>
+                            Email
+                            <input id="profile-email" name="email" type="email" autocomplete="email" required>
+                        </label>
+                        <button class="primary-action" type="submit">Save profile</button>
+                    </form>
+                    <div id="profile-message" class="form-status"></div>
+                </article>
+
+                <article class="workspace-card reveal">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Security</p>
+                            <h3>Password</h3>
+                        </div>
+                    </div>
+                    <form id="password-form" class="account-form">
+                        <label>
+                            Current password
+                            <input id="current-password" name="currentPassword" type="password" autocomplete="current-password" required>
+                        </label>
+                        <label>
+                            New password
+                            <input id="new-password" name="newPassword" type="password" autocomplete="new-password" minlength="8" required>
+                        </label>
+                        <button class="primary-action" type="submit">Update password</button>
+                    </form>
+                    <div id="password-message" class="form-status"></div>
+                </article>
+            </section>
+
+            <section id="operations" class="dashboard-grid reveal hidden" aria-label="Operations">
+                <article class="workspace-card wide-card reveal">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Operations</p>
+                            <h3>Execution runner</h3>
+                        </div>
+                        <span id="operations-mode" class="pill">-</span>
+                    </div>
+                    <div id="operations-grid" class="operations-grid"></div>
                 </article>
             </section>
         </main>
