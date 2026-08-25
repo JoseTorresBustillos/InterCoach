@@ -188,6 +188,45 @@ class ApiControllerIntegrationTest {
     }
 
     @Test
+    void userScopedEndpointRejectsDifferentUserBearerToken() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(user).value();
+
+        given(appUserRepository.findByUsernameIgnoreCase("coder"))
+                .willReturn(Optional.of(user));
+
+        mockMvc.perform(get("/api/users/99/dashboard")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.message").value("Access denied."))
+                .andExpect(jsonPath("$.path").value("/api/users/99/dashboard"));
+    }
+
+    @Test
+    void adminCanAccessDifferentUserDashboard() throws Exception {
+        AppUser admin = user(1L, "admin", "ADMIN");
+        admin.setPasswordHash(passwordEncoder.encode("password123"));
+        AppUser targetUser = user(99L, "learner", "USER");
+        String token = jwtService.generateToken(admin).value();
+
+        given(appUserRepository.findByUsernameIgnoreCase("admin"))
+                .willReturn(Optional.of(admin));
+        given(appUserRepository.findById(99L))
+                .willReturn(Optional.of(targetUser));
+        given(submissionRepository.findByUserId(99L)).willReturn(List.of());
+        given(mockInterviewRepository.findByUserIdOrderByStartedAtDesc(99L))
+                .willReturn(List.of());
+
+        mockMvc.perform(get("/api/users/99/dashboard")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(99))
+                .andExpect(jsonPath("$.username").value("learner"));
+    }
+
+    @Test
     void analyticsEndpointAcceptsValidBearerToken() throws Exception {
         AppUser user = user("coder");
         user.setPasswordHash(passwordEncoder.encode("password123"));
@@ -355,12 +394,16 @@ class ApiControllerIntegrationTest {
     }
 
     private AppUser user(String username) {
+        return user(42L, username, "USER");
+    }
+
+    private AppUser user(Long id, String username, String role) {
         AppUser user = new AppUser();
-        ReflectionTestUtils.setField(user, "id", 42L);
+        ReflectionTestUtils.setField(user, "id", id);
         ReflectionTestUtils.setField(user, "createdAt", Instant.now());
         user.setUsername(username);
         user.setEmail(username + "@example.com");
-        user.setRole("USER");
+        user.setRole(role);
         return user;
     }
 

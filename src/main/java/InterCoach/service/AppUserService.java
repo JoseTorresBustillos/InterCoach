@@ -61,6 +61,17 @@ public class AppUserService {
         return toResponse(user);
     }
 
+    public UserResponse getUserByUsername(String username) {
+        AppUser user = appUserRepository.findByUsernameIgnoreCase(username)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "User not found with username: " + username
+                        )
+                );
+
+        return toResponse(user);
+    }
+
     private UserResponse toResponse(AppUser user) {
         return new UserResponse(
                 user.getId(),

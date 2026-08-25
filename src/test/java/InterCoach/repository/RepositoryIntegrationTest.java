@@ -140,6 +140,8 @@ class RepositoryIntegrationTest {
         assertThat(submissionRepository.findByStatus(SubmissionStatus.REVIEWED))
                 .extracting(Submission::getStatus)
                 .containsExactly(SubmissionStatus.REVIEWED);
+        assertThat(submissionRepository.findUserIdById(reviewedSubmission.getId()))
+                .contains(user.getId());
         assertThat(reviewedSubmission.getCreatedAt()).isNotNull();
     }
 
@@ -168,6 +170,8 @@ class RepositoryIntegrationTest {
         assertThat(sessions)
                 .extracting(MockInterviewSession::getId)
                 .containsExactly(secondSession.getId(), firstSession.getId());
+        assertThat(mockInterviewRepository.findUserIdById(firstSession.getId()))
+                .contains(user.getId());
         assertThat(firstSession.getStatus()).isEqualTo(InterviewStatus.IN_PROGRESS);
         assertThat(firstSession.getStartedAt()).isNotNull();
     }
