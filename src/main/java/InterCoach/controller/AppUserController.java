@@ -1,5 +1,8 @@
 package InterCoach.controller;
 
+import InterCoach.dto.AuthResponse;
+import InterCoach.dto.PasswordChangeRequest;
+import InterCoach.dto.UserProfileUpdateRequest;
 import InterCoach.dto.UserRequest;
 import InterCoach.dto.UserResponse;
 import InterCoach.security.UserAccessService;
@@ -40,6 +43,29 @@ public class AppUserController {
     @GetMapping("/me")
     public UserResponse getCurrentUser(Authentication authentication) {
         return appUserService.getUserByUsername(authentication.getName());
+    }
+
+    @PatchMapping("/me")
+    public AuthResponse updateCurrentUserProfile(
+            @Valid @RequestBody UserProfileUpdateRequest request,
+            Authentication authentication
+    ) {
+        return appUserService.updateCurrentUserProfile(
+                authentication.getName(),
+                request
+        );
+    }
+
+    @PatchMapping("/me/password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changeCurrentUserPassword(
+            @Valid @RequestBody PasswordChangeRequest request,
+            Authentication authentication
+    ) {
+        appUserService.changeCurrentUserPassword(
+                authentication.getName(),
+                request
+        );
     }
 
     @GetMapping
