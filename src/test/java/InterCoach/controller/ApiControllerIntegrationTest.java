@@ -228,6 +228,47 @@ class ApiControllerIntegrationTest {
     }
 
     @Test
+    void executionOperationsEndpointRejectsNonAdmins() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(user).value();
+
+        given(appUserRepository.findByUsernameIgnoreCase("coder"))
+                .willReturn(Optional.of(user));
+
+        mockMvc.perform(get("/api/admin/execution/status")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.message").value("Access denied."))
+                .andExpect(jsonPath("$.path").value("/api/admin/execution/status"));
+    }
+
+    @Test
+    void executionOperationsEndpointAllowsAdmins() throws Exception {
+        AppUser admin = user(1L, "admin", "ADMIN");
+        admin.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(admin).value();
+
+        given(appUserRepository.findByUsernameIgnoreCase("admin"))
+                .willReturn(Optional.of(admin));
+
+        mockMvc.perform(get("/api/admin/execution/status")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mode").value("LOCAL"))
+                .andExpect(jsonPath("$.supportedLanguage").value("Java"))
+                .andExpect(jsonPath("$.compileTimeoutSeconds").value(5))
+                .andExpect(jsonPath("$.testTimeoutSeconds").value(2))
+                .andExpect(jsonPath("$.visibleTestCasesOnly").value(true))
+                .andExpect(jsonPath("$.temporaryWorkspacePerRun").value(true))
+                .andExpect(jsonPath("$.childEnvironmentSanitized").value(true))
+                .andExpect(jsonPath("$.docker.image").value("eclipse-temurin:21-jdk"))
+                .andExpect(jsonPath("$.docker.networkDisabled").value(true))
+                .andExpect(jsonPath("$.docker.readOnlyRootFilesystem").value(true));
+    }
+
+    @Test
     void currentUserEndpointReturnsAuthenticatedProfile() throws Exception {
         AppUser user = user("coder");
         user.setPasswordHash(passwordEncoder.encode("password123"));
