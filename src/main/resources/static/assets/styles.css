@@ -37,11 +37,13 @@ body {
 
 button,
 input,
+select,
 textarea {
     font: inherit;
 }
 
 input:disabled,
+select:disabled,
 textarea:disabled,
 button:disabled {
     cursor: not-allowed;
@@ -55,6 +57,7 @@ button {
 button,
 a,
 input,
+select,
 textarea,
 .auth-panel,
 .workspace-card,
@@ -64,11 +67,13 @@ textarea,
 .recommendation-row,
 .operation-row,
 .problem-row,
+.interview-row,
 .test-case-row,
 .code-sample,
 .run-summary,
 .run-case,
 .review-summary,
+.interview-summary,
 .feedback-item,
 .signal-row div {
     transition:
@@ -220,7 +225,8 @@ textarea,
 .auth-form,
 .assistant-form,
 .account-form,
-.code-run-form {
+.code-run-form,
+.interview-form {
     display: grid;
     gap: 12px;
 }
@@ -234,6 +240,7 @@ label {
 }
 
 input,
+select,
 textarea {
     width: 100%;
     border: 1px solid var(--line);
@@ -242,6 +249,24 @@ textarea {
     color: var(--text);
     padding: 11px 12px;
     outline: none;
+}
+
+select {
+    appearance: none;
+    background:
+        linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+        linear-gradient(135deg, var(--muted) 50%, transparent 50%),
+        rgba(11, 15, 12, 0.72);
+    background-position:
+        calc(100% - 18px) 50%,
+        calc(100% - 13px) 50%,
+        0 0;
+    background-repeat: no-repeat;
+    background-size:
+        5px 5px,
+        5px 5px,
+        100% 100%;
+    padding-right: 36px;
 }
 
 textarea {
@@ -257,6 +282,7 @@ textarea {
 }
 
 input:focus,
+select:focus,
 textarea:focus {
     border-color: rgba(143, 184, 131, 0.78);
     box-shadow: 0 0 0 3px rgba(143, 184, 131, 0.14), var(--glow-green);
@@ -436,6 +462,8 @@ textarea:focus {
 .operations-grid,
 .problem-list,
 .problem-detail,
+.interview-list,
+.interview-detail,
 .run-result,
 .review-result,
 .run-case-list,
@@ -454,6 +482,7 @@ textarea:focus {
 .recommendation-row,
 .operation-row,
 .problem-row,
+.interview-row,
 .test-case-row,
 .run-case,
 .feedback-item {
@@ -471,6 +500,8 @@ textarea:focus {
 .operation-row:hover,
 .problem-row:hover,
 .problem-row:focus-visible,
+.interview-row:hover,
+.interview-row:focus-visible,
 .test-case-row:hover,
 .run-case:hover,
 .feedback-item:hover,
@@ -480,12 +511,14 @@ textarea:focus {
     transform: translateY(-1px);
 }
 
+.interview-row,
 .problem-row {
     width: 100%;
     text-align: left;
     color: var(--text);
 }
 
+.interview-row.active,
 .problem-row.active {
     border-color: rgba(143, 184, 131, 0.5);
     background: rgba(143, 184, 131, 0.12);
@@ -493,25 +526,30 @@ textarea:focus {
 }
 
 .problem-row-main,
+.interview-row-main,
 .problem-title-block {
     display: grid;
     gap: 6px;
 }
 
 .problem-row-main span,
+.interview-row-main span,
 .problem-description {
     color: #d5d0c2;
     line-height: 1.55;
 }
 
 .problem-row-meta,
+.interview-row-meta,
 .problem-meta,
 .test-case-heading,
 .run-case-heading,
 .run-summary,
 .review-summary,
+.interview-summary,
 .form-actions,
 .run-actions,
+.interview-actions,
 .recommendation-footer {
     display: flex;
     align-items: center;
@@ -520,6 +558,7 @@ textarea:focus {
 }
 
 .problem-row-meta,
+.interview-row-meta,
 .problem-meta,
 .test-case-heading,
 .run-case-heading,
@@ -529,6 +568,7 @@ textarea:focus {
 }
 
 .problem-row-meta span,
+.interview-row-meta span,
 .problem-meta span {
     border: 1px solid var(--line);
     border-radius: 999px;
@@ -632,6 +672,7 @@ textarea:focus {
     border-color: rgba(143, 184, 131, 0.34);
 }
 
+.interview-summary,
 .review-summary {
     border: 1px solid rgba(127, 168, 153, 0.32);
     border-radius: 8px;
@@ -648,10 +689,20 @@ textarea:focus {
     border-color: rgba(216, 132, 104, 0.42);
 }
 
+.interview-summary div,
 .review-summary div,
 .feedback-item {
     display: grid;
     gap: 6px;
+}
+
+.interview-summary strong {
+    font-size: 1.1rem;
+}
+
+.interview-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
 }
 
 .review-copy {
@@ -869,9 +920,11 @@ textarea:focus {
 
     .form-actions,
     .run-actions,
+    .interview-actions,
     .recommendation-footer,
     .run-summary,
-    .review-summary {
+    .review-summary,
+    .interview-summary {
         align-items: stretch;
         flex-direction: column;
     }

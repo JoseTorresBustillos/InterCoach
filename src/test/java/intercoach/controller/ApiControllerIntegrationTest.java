@@ -207,18 +207,23 @@ class ApiControllerIntegrationTest {
     }
 
     @Test
-    void frontendAssetsIncludeProblemWorkflow() throws Exception {
+    void frontendAssetsIncludeLearningWorkflows() throws Exception {
         mockMvc.perform(get("/index.html"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("id=\"problems\"")))
                 .andExpect(content().string(containsString("id=\"code-run-form\"")))
-                .andExpect(content().string(containsString("id=\"submit-review\"")));
+                .andExpect(content().string(containsString("id=\"submit-review\"")))
+                .andExpect(content().string(containsString("id=\"interviews\"")))
+                .andExpect(content().string(containsString("id=\"start-interview\"")));
 
         mockMvc.perform(get("/assets/app.js"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("/api/problems")))
                 .andExpect(content().string(containsString("/submissions")))
-                .andExpect(content().string(containsString("/run")));
+                .andExpect(content().string(containsString("/run")))
+                .andExpect(content().string(containsString("/mock-interviews")))
+                .andExpect(content().string(containsString("data-interview-action=\"complete\"")))
+                .andExpect(content().string(containsString("data-interview-action=\"abandon\"")));
     }
 
     @Test

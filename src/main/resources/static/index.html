@@ -54,6 +54,7 @@
                 <a href="#progress">Progress</a>
                 <a href="#analytics">Analytics</a>
                 <a href="#problems">Problems</a>
+                <a href="#interviews">Interviews</a>
                 <a href="#recommendations">Practice</a>
                 <a href="#assistant">Assistant</a>
                 <a href="#account">Account</a>
@@ -156,6 +157,46 @@
                     </form>
                     <div id="run-result" class="run-result"></div>
                     <div id="review-result" class="review-result"></div>
+                </article>
+            </section>
+
+            <section id="interviews" class="dashboard-grid reveal" aria-label="Mock interviews">
+                <article class="workspace-card reveal">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Mock interviews</p>
+                            <h3>Start session</h3>
+                        </div>
+                        <span id="interview-count" class="pill">0 sessions</span>
+                    </div>
+                    <form id="interview-form" class="interview-form">
+                        <label>
+                            Difficulty
+                            <select id="interview-difficulty" name="difficulty">
+                                <option value="EASY">Easy</option>
+                                <option value="MEDIUM">Medium</option>
+                                <option value="HARD">Hard</option>
+                            </select>
+                        </label>
+                        <label>
+                            Duration
+                            <input id="interview-duration" name="durationMinutes" type="number" min="10" max="180" step="5" value="45">
+                        </label>
+                        <button id="start-interview" class="primary-action" type="submit">Start mock interview</button>
+                    </form>
+                    <div id="interview-message" class="form-status"></div>
+                    <div id="interview-list" class="interview-list"></div>
+                </article>
+
+                <article class="workspace-card reveal">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Session</p>
+                            <h3>Interview prompt</h3>
+                        </div>
+                        <span id="interview-status" class="pill">No session</span>
+                    </div>
+                    <div id="interview-detail" class="interview-detail"></div>
                 </article>
             </section>
 

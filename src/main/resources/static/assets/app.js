@@ -11,15 +11,20 @@ const state = {
     recommendations: [],
     executionStatus: null,
     problems: [],
+    mockInterviews: [],
     selectedProblemId: null,
     selectedProblem: null,
+    selectedInterviewId: null,
+    selectedInterview: null,
     testCases: [],
     testCasesError: null,
     runResult: null,
     reviewResult: null,
     problemDrafts: {},
     runningCode: false,
-    submittingReview: false
+    submittingReview: false,
+    startingInterview: false,
+    updatingInterview: false
 };
 
 const elements = {
@@ -60,6 +65,15 @@ const elements = {
     codeRunStatus: document.querySelector("#code-run-status"),
     runResult: document.querySelector("#run-result"),
     reviewResult: document.querySelector("#review-result"),
+    interviewCount: document.querySelector("#interview-count"),
+    interviewForm: document.querySelector("#interview-form"),
+    interviewDifficulty: document.querySelector("#interview-difficulty"),
+    interviewDuration: document.querySelector("#interview-duration"),
+    startInterview: document.querySelector("#start-interview"),
+    interviewMessage: document.querySelector("#interview-message"),
+    interviewList: document.querySelector("#interview-list"),
+    interviewStatus: document.querySelector("#interview-status"),
+    interviewDetail: document.querySelector("#interview-detail"),
     assistantForm: document.querySelector("#assistant-form"),
     assistantQuestion: document.querySelector("#assistant-question"),
     assistantAnswer: document.querySelector("#assistant-answer"),
@@ -88,6 +102,9 @@ elements.recommendationList.addEventListener("click", handleRecommendationOpen);
 elements.codeRunForm.addEventListener("submit", handleCodeRun);
 elements.submitReview.addEventListener("click", handleReviewSubmission);
 elements.codeEditor.addEventListener("input", handleCodeDraft);
+elements.interviewForm.addEventListener("submit", handleInterviewStart);
+elements.interviewList.addEventListener("click", handleInterviewSelection);
+elements.interviewDetail.addEventListener("click", handleInterviewAction);
 elements.assistantForm.addEventListener("submit", handleAssistantQuestion);
 elements.profileForm.addEventListener("submit", handleProfileUpdate);
 elements.passwordForm.addEventListener("submit", handlePasswordChange);
@@ -170,8 +187,11 @@ function signOut() {
     state.recommendations = [];
     state.executionStatus = null;
     state.problems = [];
+    state.mockInterviews = [];
     state.selectedProblemId = null;
     state.selectedProblem = null;
+    state.selectedInterviewId = null;
+    state.selectedInterview = null;
     state.testCases = [];
     state.testCasesError = null;
     state.runResult = null;
@@ -179,7 +199,10 @@ function signOut() {
     state.problemDrafts = {};
     state.runningCode = false;
     state.submittingReview = false;
+    state.startingInterview = false;
+    state.updatingInterview = false;
     elements.assistantAnswer.innerHTML = "";
+    clearFormStatus(elements.interviewMessage);
     clearFormStatus(elements.profileMessage);
     clearFormStatus(elements.passwordMessage);
     renderSession();
@@ -202,13 +225,15 @@ async function loadWorkspace() {
             analytics,
             recommendations,
             executionStatus,
-            problems
+            problems,
+            mockInterviews
         ] = await Promise.all([
             api(`/api/users/${userId}/dashboard`),
             api(`/api/users/${userId}/analytics`),
             api(`/api/users/${userId}/recommendations`),
             loadExecutionStatus(),
-            api("/api/problems")
+            api("/api/problems"),
+            api(`/api/users/${userId}/mock-interviews`)
         ]);
 
         state.dashboard = dashboard;
@@ -216,7 +241,9 @@ async function loadWorkspace() {
         state.recommendations = recommendations;
         state.executionStatus = executionStatus;
         state.problems = Array.isArray(problems) ? problems : [];
+        state.mockInterviews = Array.isArray(mockInterviews) ? mockInterviews : [];
         syncSelectedProblem();
+        syncSelectedInterview();
         renderWorkspace();
         await loadSelectedProblemDetails();
         setConnection("Connected");
@@ -233,15 +260,18 @@ async function refreshWorkspaceSummaries() {
         return;
     }
 
-    const [dashboard, analytics, recommendations] = await Promise.all([
+    const [dashboard, analytics, recommendations, mockInterviews] = await Promise.all([
         api(`/api/users/${userId}/dashboard`),
         api(`/api/users/${userId}/analytics`),
-        api(`/api/users/${userId}/recommendations`)
+        api(`/api/users/${userId}/recommendations`),
+        api(`/api/users/${userId}/mock-interviews`)
     ]);
 
     state.dashboard = dashboard;
     state.analytics = analytics;
     state.recommendations = recommendations;
+    state.mockInterviews = Array.isArray(mockInterviews) ? mockInterviews : [];
+    syncSelectedInterview();
     renderWorkspace();
 }
 
@@ -411,6 +441,158 @@ async function handleReviewSubmission() {
     }
 }
 
+async function handleInterviewStart(event) {
+    event.preventDefault();
+
+    if (!state.session) {
+        renderFormStatus(elements.interviewMessage, "Sign in first.", true);
+        return;
+    }
+
+    if (state.startingInterview) {
+        return;
+    }
+
+    const durationMinutes = Number(elements.interviewDuration.value);
+
+    if (!Number.isFinite(durationMinutes) || durationMinutes < 10 || durationMinutes > 180) {
+        renderFormStatus(
+            elements.interviewMessage,
+            "Choose a duration from 10 to 180 minutes.",
+            true
+        );
+        return;
+    }
+
+    state.startingInterview = true;
+    clearFormStatus(elements.interviewMessage);
+    renderInterviewWorkspace();
+    setConnection("Starting interview");
+
+    try {
+        const interview = await api(
+            `/api/users/${state.session.user.id}/mock-interviews`,
+            {
+                method: "POST",
+                body: JSON.stringify({
+                    difficulty: elements.interviewDifficulty.value,
+                    durationMinutes
+                })
+            }
+        );
+        state.mockInterviews = mergeInterview(interview, state.mockInterviews);
+        state.selectedInterviewId = interview.sessionId;
+        state.selectedInterview = interview;
+        renderFormStatus(elements.interviewMessage, "Interview started.");
+
+        try {
+            await refreshWorkspaceSummaries();
+            setConnection("Interview started");
+        } catch (refreshError) {
+            setConnection("Interview started; refresh failed");
+        }
+    } catch (error) {
+        renderFormStatus(elements.interviewMessage, error.message, true);
+        setConnection(error.message);
+    } finally {
+        state.startingInterview = false;
+        renderInterviewWorkspace();
+    }
+}
+
+function handleInterviewSelection(event) {
+    const button = event.target.closest("[data-interview-id]");
+
+    if (!button) {
+        return;
+    }
+
+    selectInterview(button.dataset.interviewId);
+}
+
+async function handleInterviewAction(event) {
+    const openProblemButton = event.target.closest("[data-interview-problem-id]");
+    const actionButton = event.target.closest("[data-interview-action]");
+
+    if (openProblemButton) {
+        await selectProblem(openProblemButton.dataset.interviewProblemId);
+        document.querySelector("#problems")?.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+        return;
+    }
+
+    if (!actionButton || !state.selectedInterview) {
+        return;
+    }
+
+    await updateInterviewStatus(actionButton.dataset.interviewAction);
+}
+
+function selectInterview(interviewId) {
+    const interview = state.mockInterviews.find((candidate) => {
+        return String(candidate.sessionId) === String(interviewId);
+    });
+
+    if (!interview) {
+        return;
+    }
+
+    state.selectedInterviewId = interview.sessionId;
+    state.selectedInterview = interview;
+    renderInterviewWorkspace();
+}
+
+function mergeInterview(interview, interviews) {
+    if (!interview) {
+        return interviews || [];
+    }
+
+    const remainingInterviews = (interviews || []).filter((candidate) => {
+        return String(candidate.sessionId) !== String(interview.sessionId);
+    });
+
+    return [interview, ...remainingInterviews];
+}
+
+async function updateInterviewStatus(action) {
+    if (!["complete", "abandon"].includes(action)) {
+        return;
+    }
+
+    if (state.updatingInterview || !state.selectedInterview) {
+        return;
+    }
+
+    state.updatingInterview = true;
+    renderInterviewWorkspace();
+    setConnection(`${statusLabel(action)} interview`);
+
+    try {
+        const interview = await api(
+            `/api/mock-interviews/${state.selectedInterview.sessionId}/${action}`,
+            {method: "PATCH"}
+        );
+        state.mockInterviews = mergeInterview(interview, state.mockInterviews);
+        state.selectedInterviewId = interview.sessionId;
+        state.selectedInterview = interview;
+
+        try {
+            await refreshWorkspaceSummaries();
+            setConnection(statusLabel(interview.status));
+        } catch (refreshError) {
+            setConnection("Interview updated; refresh failed");
+        }
+    } catch (error) {
+        renderFormStatus(elements.interviewMessage, error.message, true);
+        setConnection(error.message);
+    } finally {
+        state.updatingInterview = false;
+        renderInterviewWorkspace();
+    }
+}
+
 async function handleAssistantQuestion(event) {
     event.preventDefault();
 
@@ -572,6 +754,7 @@ function renderWorkspace() {
     renderTrend(analytics.activityTrend || []);
     renderCategoryBreakdown(analytics.categoryBreakdown || []);
     renderProblemWorkspace();
+    renderInterviewWorkspace();
     renderRecommendations(state.recommendations || []);
     renderOperations();
 }
@@ -701,6 +884,24 @@ function syncSelectedProblem() {
     }
 }
 
+function syncSelectedInterview() {
+    if (!state.session || !state.mockInterviews.length) {
+        state.selectedInterviewId = null;
+        state.selectedInterview = null;
+        return;
+    }
+
+    const selectedInterview = state.mockInterviews.find((interview) => {
+        return String(interview.sessionId) === String(state.selectedInterviewId);
+    });
+    const activeInterview = state.mockInterviews.find((interview) => {
+        return interview.status === "IN_PROGRESS";
+    });
+
+    state.selectedInterview = selectedInterview || activeInterview || state.mockInterviews[0];
+    state.selectedInterviewId = state.selectedInterview.sessionId;
+}
+
 async function selectProblem(problemId) {
     const problem = state.problems.find((candidate) => {
         return String(candidate.id) === String(problemId);
@@ -732,6 +933,125 @@ function renderProblemWorkspace() {
     renderProblemDetail();
     renderRunResult();
     renderReviewResult();
+}
+
+function renderInterviewWorkspace() {
+    renderInterviewForm();
+    renderInterviewList();
+    renderInterviewDetail();
+}
+
+function renderInterviewForm() {
+    const interviews = state.mockInterviews || [];
+    const disabled = !state.session || state.startingInterview;
+
+    elements.interviewCount.textContent = `${number(interviews.length)} ${plural(
+            interviews.length,
+            "session",
+            "sessions"
+    )}`;
+    elements.interviewDifficulty.disabled = disabled;
+    elements.interviewDuration.disabled = disabled;
+    elements.startInterview.disabled = disabled;
+    elements.startInterview.textContent = state.startingInterview
+        ? "Starting..."
+        : "Start mock interview";
+}
+
+function renderInterviewList() {
+    const interviews = state.mockInterviews || [];
+    elements.interviewList.innerHTML = "";
+
+    if (!state.session) {
+        renderEmpty(elements.interviewList, "Sign in to load interviews.");
+        return;
+    }
+
+    if (!interviews.length) {
+        renderEmpty(elements.interviewList, "No mock interviews yet.");
+        return;
+    }
+
+    interviews.forEach((interview) => {
+        const row = document.createElement("button");
+        const isActive = String(interview.sessionId) === String(state.selectedInterviewId);
+        row.className = `interview-row${isActive ? " active" : ""}`;
+        row.type = "button";
+        row.dataset.interviewId = interview.sessionId;
+        row.innerHTML = `
+            <span class="interview-row-main">
+                <strong>${escapeHtml(interview.problemTitle || "Untitled prompt")}</strong>
+                <span>${escapeHtml(formatDateTime(interview.startedAt))}</span>
+            </span>
+            <span class="interview-row-meta">
+                <span>${escapeHtml(interview.difficulty || "-")}</span>
+                <span>${escapeHtml(interview.category || "General")}</span>
+                <span>${number(interview.durationMinutes)} min</span>
+                <span>${escapeHtml(statusLabel(interview.status))}</span>
+            </span>
+        `;
+        elements.interviewList.append(row);
+    });
+}
+
+function renderInterviewDetail() {
+    const interview = state.selectedInterview;
+
+    if (!state.session) {
+        elements.interviewStatus.textContent = "Signed out";
+        renderEmpty(elements.interviewDetail, "Sign in to inspect interview prompts.");
+        return;
+    }
+
+    if (!interview) {
+        elements.interviewStatus.textContent = "No session";
+        renderEmpty(elements.interviewDetail, "Start a mock interview when ready.");
+        return;
+    }
+
+    const isActive = interview.status === "IN_PROGRESS";
+    const actionDisabled = state.updatingInterview ? "disabled" : "";
+    const activeActions = isActive
+        ? `
+            <button class="primary-action" type="button" data-interview-action="complete" ${actionDisabled}>
+                Complete
+            </button>
+            <button class="secondary-action" type="button" data-interview-action="abandon" ${actionDisabled}>
+                Abandon
+            </button>
+        `
+        : "";
+    const openProblemButton = interview.problemId == null
+        ? ""
+        : `
+            <button class="inline-action" type="button" data-interview-problem-id="${escapeHtml(interview.problemId)}">
+                Open problem
+            </button>
+        `;
+
+    elements.interviewStatus.textContent = state.updatingInterview
+        ? "Updating"
+        : statusLabel(interview.status);
+    elements.interviewDetail.innerHTML = `
+        <div class="interview-summary">
+            <div>
+                <strong>${escapeHtml(interview.problemTitle || "Untitled prompt")}</strong>
+                <span>${escapeHtml(interview.difficulty || "-")} / ${escapeHtml(interview.category || "General")}</span>
+            </div>
+            <div>
+                <span>${number(interview.durationMinutes)} min</span>
+                <span>${escapeHtml(formatDateTime(interview.startedAt))}</span>
+            </div>
+        </div>
+        <p class="problem-description">${multiline(interview.description || "No prompt description yet.")}</p>
+        ${renderProblemBlock("Examples", interview.examples)}
+        ${renderProblemBlock("Constraints", interview.constraints)}
+        ${renderProblemBlock("Starter Code", interview.starterCode)}
+        <div class="interview-actions">
+            ${activeActions}
+            ${openProblemButton}
+        </div>
+    `;
 }
 
 function renderProblemList() {
@@ -1224,6 +1544,9 @@ function renderError(message) {
     elements.codeRunForm.classList.add("hidden");
     elements.runResult.innerHTML = "";
     elements.reviewResult.innerHTML = "";
+    renderEmpty(elements.interviewList, message, true);
+    renderEmpty(elements.interviewDetail, message, true);
+    elements.interviewStatus.textContent = "Error";
     renderEmpty(elements.recommendationList, message, true);
 }
 
