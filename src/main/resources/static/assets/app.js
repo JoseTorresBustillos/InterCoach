@@ -16,6 +16,8 @@ const state = {
     selectedProblem: null,
     selectedInterviewId: null,
     selectedInterview: null,
+    authoringMode: "create",
+    authoringProblemId: null,
     testCases: [],
     testCasesError: null,
     runResult: null,
@@ -24,7 +26,10 @@ const state = {
     runningCode: false,
     submittingReview: false,
     startingInterview: false,
-    updatingInterview: false
+    updatingInterview: false,
+    savingProblem: false,
+    deletingProblem: false,
+    savingTestCase: false
 };
 
 const elements = {
@@ -65,6 +70,30 @@ const elements = {
     codeRunStatus: document.querySelector("#code-run-status"),
     runResult: document.querySelector("#run-result"),
     reviewResult: document.querySelector("#review-result"),
+    problemAuthorForm: document.querySelector("#problem-author-form"),
+    problemAuthorMode: document.querySelector("#problem-author-mode"),
+    problemAuthorTitle: document.querySelector("#problem-author-title"),
+    problemAuthorDifficulty: document.querySelector("#problem-author-difficulty"),
+    problemAuthorCategory: document.querySelector("#problem-author-category"),
+    problemAuthorTags: document.querySelector("#problem-author-tags"),
+    problemAuthorDescription: document.querySelector("#problem-author-description"),
+    problemAuthorExamples: document.querySelector("#problem-author-examples"),
+    problemAuthorConstraints: document.querySelector("#problem-author-constraints"),
+    problemAuthorStarterCode: document.querySelector("#problem-author-starter-code"),
+    problemAuthorSolution: document.querySelector("#problem-author-solution"),
+    saveProblem: document.querySelector("#save-problem"),
+    editSelectedProblem: document.querySelector("#edit-selected-problem"),
+    resetProblemAuthor: document.querySelector("#reset-problem-author"),
+    deleteProblem: document.querySelector("#delete-problem"),
+    problemAuthorMessage: document.querySelector("#problem-author-message"),
+    testCaseForm: document.querySelector("#test-case-form"),
+    testCaseInput: document.querySelector("#test-case-input"),
+    testCaseExpected: document.querySelector("#test-case-expected"),
+    testCaseHidden: document.querySelector("#test-case-hidden"),
+    addTestCase: document.querySelector("#add-test-case"),
+    testCaseMessage: document.querySelector("#test-case-message"),
+    authorTestCount: document.querySelector("#author-test-count"),
+    authorTestList: document.querySelector("#author-test-list"),
     interviewCount: document.querySelector("#interview-count"),
     interviewForm: document.querySelector("#interview-form"),
     interviewDifficulty: document.querySelector("#interview-difficulty"),
@@ -102,6 +131,11 @@ elements.recommendationList.addEventListener("click", handleRecommendationOpen);
 elements.codeRunForm.addEventListener("submit", handleCodeRun);
 elements.submitReview.addEventListener("click", handleReviewSubmission);
 elements.codeEditor.addEventListener("input", handleCodeDraft);
+elements.problemAuthorForm.addEventListener("submit", handleProblemSave);
+elements.editSelectedProblem.addEventListener("click", beginEditingSelectedProblem);
+elements.resetProblemAuthor.addEventListener("click", () => resetProblemAuthoring());
+elements.deleteProblem.addEventListener("click", handleProblemDelete);
+elements.testCaseForm.addEventListener("submit", handleTestCaseSave);
 elements.interviewForm.addEventListener("submit", handleInterviewStart);
 elements.interviewList.addEventListener("click", handleInterviewSelection);
 elements.interviewDetail.addEventListener("click", handleInterviewAction);
@@ -192,6 +226,8 @@ function signOut() {
     state.selectedProblem = null;
     state.selectedInterviewId = null;
     state.selectedInterview = null;
+    state.authoringMode = "create";
+    state.authoringProblemId = null;
     state.testCases = [];
     state.testCasesError = null;
     state.runResult = null;
@@ -201,7 +237,14 @@ function signOut() {
     state.submittingReview = false;
     state.startingInterview = false;
     state.updatingInterview = false;
+    state.savingProblem = false;
+    state.deletingProblem = false;
+    state.savingTestCase = false;
     elements.assistantAnswer.innerHTML = "";
+    fillProblemAuthorForm(emptyProblemAuthorFields());
+    clearTestCaseForm();
+    clearFormStatus(elements.problemAuthorMessage);
+    clearFormStatus(elements.testCaseMessage);
     clearFormStatus(elements.interviewMessage);
     clearFormStatus(elements.profileMessage);
     clearFormStatus(elements.passwordMessage);
@@ -280,6 +323,7 @@ async function loadSelectedProblemDetails() {
         state.testCases = [];
         state.testCasesError = null;
         renderProblemWorkspace();
+        renderAuthoringWorkspace();
         return;
     }
 
@@ -296,6 +340,7 @@ async function loadSelectedProblemDetails() {
     }
 
     renderProblemWorkspace();
+    renderAuthoringWorkspace();
 }
 
 async function loadExecutionStatus() {
@@ -438,6 +483,202 @@ async function handleReviewSubmission() {
     } finally {
         state.submittingReview = false;
         renderProblemWorkspace();
+    }
+}
+
+async function handleProblemSave(event) {
+    event.preventDefault();
+
+    if (!state.session) {
+        renderFormStatus(elements.problemAuthorMessage, "Sign in first.", true);
+        return;
+    }
+
+    if (state.savingProblem) {
+        return;
+    }
+
+    const payload = problemPayloadFromForm();
+
+    if (!payload) {
+        return;
+    }
+
+    const isEditing = state.authoringMode === "edit" && state.authoringProblemId != null;
+    state.savingProblem = true;
+    clearFormStatus(elements.problemAuthorMessage);
+    renderAuthoringWorkspace();
+    setConnection(isEditing ? "Saving problem" : "Creating problem");
+
+    try {
+        const problemPath = isEditing
+            ? `/api/problems/${state.authoringProblemId}`
+            : "/api/problems";
+        const problemMethod = isEditing ? "PUT" : "POST";
+        const problem = await api(problemPath, {
+            method: problemMethod,
+            body: JSON.stringify(payload)
+        });
+
+        if (state.selectedProblem) {
+            state.problemDrafts[state.selectedProblem.id] = elements.codeEditor.value;
+        }
+
+        state.problems = mergeProblem(problem, state.problems);
+        state.selectedProblemId = problem.id;
+        state.selectedProblem = problem;
+        state.authoringMode = "edit";
+        state.authoringProblemId = problem.id;
+        fillProblemAuthorForm(problem);
+        ensureProblemDraft(problem);
+        renderFormStatus(
+            elements.problemAuthorMessage,
+            isEditing ? "Problem saved." : "Problem created."
+        );
+        renderWorkspace();
+        await loadSelectedProblemDetails();
+        setConnection(isEditing ? "Problem saved" : "Problem created");
+    } catch (error) {
+        renderFormStatus(elements.problemAuthorMessage, error.message, true);
+        setConnection(error.message);
+    } finally {
+        state.savingProblem = false;
+        renderAuthoringWorkspace();
+    }
+}
+
+function beginEditingSelectedProblem() {
+    if (!state.session) {
+        renderFormStatus(elements.problemAuthorMessage, "Sign in first.", true);
+        return;
+    }
+
+    if (!state.selectedProblem) {
+        renderFormStatus(elements.problemAuthorMessage, "Choose a problem first.", true);
+        return;
+    }
+
+    state.authoringMode = "edit";
+    state.authoringProblemId = state.selectedProblem.id;
+    fillProblemAuthorForm(state.selectedProblem);
+    clearFormStatus(elements.problemAuthorMessage);
+    renderAuthoringWorkspace();
+}
+
+function resetProblemAuthoring(clearStatus = true) {
+    state.authoringMode = "create";
+    state.authoringProblemId = null;
+    fillProblemAuthorForm(emptyProblemAuthorFields());
+
+    if (clearStatus) {
+        clearFormStatus(elements.problemAuthorMessage);
+    }
+
+    renderAuthoringWorkspace();
+}
+
+async function handleProblemDelete() {
+    if (!state.session) {
+        renderFormStatus(elements.problemAuthorMessage, "Sign in first.", true);
+        return;
+    }
+
+    if (state.deletingProblem) {
+        return;
+    }
+
+    if (state.authoringMode !== "edit" || state.authoringProblemId == null) {
+        renderFormStatus(elements.problemAuthorMessage, "Load a problem before deleting.", true);
+        return;
+    }
+
+    const shouldDelete = window.confirm("Delete this problem?");
+
+    if (!shouldDelete) {
+        return;
+    }
+
+    const deletedProblemId = state.authoringProblemId;
+    state.deletingProblem = true;
+    clearFormStatus(elements.problemAuthorMessage);
+    renderAuthoringWorkspace();
+    setConnection("Deleting problem");
+
+    try {
+        await api(`/api/problems/${deletedProblemId}`, {method: "DELETE"});
+        state.problems = state.problems.filter((problem) => {
+            return String(problem.id) !== String(deletedProblemId);
+        });
+        delete state.problemDrafts[deletedProblemId];
+
+        if (String(state.selectedProblemId) === String(deletedProblemId)) {
+            state.selectedProblemId = null;
+        }
+
+        syncSelectedProblem();
+        resetProblemAuthoring(false);
+        renderFormStatus(elements.problemAuthorMessage, "Problem deleted.");
+        renderWorkspace();
+        await loadSelectedProblemDetails();
+        setConnection("Problem deleted");
+    } catch (error) {
+        renderFormStatus(elements.problemAuthorMessage, error.message, true);
+        setConnection(error.message);
+    } finally {
+        state.deletingProblem = false;
+        renderAuthoringWorkspace();
+    }
+}
+
+async function handleTestCaseSave(event) {
+    event.preventDefault();
+
+    if (!state.session) {
+        renderFormStatus(elements.testCaseMessage, "Sign in first.", true);
+        return;
+    }
+
+    if (!state.selectedProblem) {
+        renderFormStatus(elements.testCaseMessage, "Choose a problem first.", true);
+        return;
+    }
+
+    if (state.savingTestCase) {
+        return;
+    }
+
+    const input = elements.testCaseInput.value;
+    const expectedOutput = elements.testCaseExpected.value;
+
+    if (!input.trim() || !expectedOutput.trim()) {
+        renderFormStatus(elements.testCaseMessage, "Input and expected output are required.", true);
+        return;
+    }
+
+    state.savingTestCase = true;
+    clearFormStatus(elements.testCaseMessage);
+    renderAuthoringWorkspace();
+    setConnection("Adding test case");
+
+    try {
+        await api(`/api/problems/${state.selectedProblem.id}/test-cases`, {
+            method: "POST",
+            body: JSON.stringify({
+                input,
+                expectedOutput,
+                hidden: elements.testCaseHidden.checked
+            })
+        });
+        clearTestCaseForm();
+        await loadSelectedProblemDetails();
+        renderFormStatus(elements.testCaseMessage, "Test case added.");
+        setConnection("Test case added");
+    } catch (error) {
+        renderFormStatus(elements.testCaseMessage, error.message, true);
+        setConnection(error.message);
+    } finally {
+        state.savingTestCase = false;
+        renderAuthoringWorkspace();
     }
 }
 
@@ -754,6 +995,7 @@ function renderWorkspace() {
     renderTrend(analytics.activityTrend || []);
     renderCategoryBreakdown(analytics.categoryBreakdown || []);
     renderProblemWorkspace();
+    renderAuthoringWorkspace();
     renderInterviewWorkspace();
     renderRecommendations(state.recommendations || []);
     renderOperations();
@@ -928,11 +1170,180 @@ async function selectProblem(problemId) {
     setConnection(state.testCasesError || "Problem loaded");
 }
 
+function mergeProblem(problem, problems) {
+    if (!problem) {
+        return problems || [];
+    }
+
+    const remainingProblems = (problems || []).filter((candidate) => {
+        return String(candidate.id) !== String(problem.id);
+    });
+
+    return [problem, ...remainingProblems];
+}
+
+function problemPayloadFromForm() {
+    const title = elements.problemAuthorTitle.value.trim();
+    const description = elements.problemAuthorDescription.value.trim();
+
+    if (!title || !description) {
+        renderFormStatus(
+            elements.problemAuthorMessage,
+            "Title and description are required.",
+            true
+        );
+        return null;
+    }
+
+    return {
+        title,
+        description,
+        difficulty: elements.problemAuthorDifficulty.value,
+        category: nullableText(elements.problemAuthorCategory.value),
+        tags: nullableText(elements.problemAuthorTags.value),
+        examples: nullableText(elements.problemAuthorExamples.value),
+        constraints: nullableText(elements.problemAuthorConstraints.value),
+        starterCode: nullableText(elements.problemAuthorStarterCode.value),
+        solutionExplanation: nullableText(elements.problemAuthorSolution.value)
+    };
+}
+
+function nullableText(value) {
+    const text = String(value || "").trim();
+    return text ? text : null;
+}
+
+function fillProblemAuthorForm(problem) {
+    elements.problemAuthorTitle.value = problem.title || "";
+    elements.problemAuthorDifficulty.value = problem.difficulty || "EASY";
+    elements.problemAuthorCategory.value = problem.category || "";
+    elements.problemAuthorTags.value = problem.tags || "";
+    elements.problemAuthorDescription.value = problem.description || "";
+    elements.problemAuthorExamples.value = problem.examples || "";
+    elements.problemAuthorConstraints.value = problem.constraints || "";
+    elements.problemAuthorStarterCode.value = problem.starterCode || "";
+    elements.problemAuthorSolution.value = problem.solutionExplanation || "";
+}
+
+function emptyProblemAuthorFields() {
+    return {
+        title: "",
+        difficulty: "EASY",
+        category: "",
+        tags: "",
+        description: "",
+        examples: "",
+        constraints: "",
+        starterCode: "",
+        solutionExplanation: ""
+    };
+}
+
+function clearTestCaseForm() {
+    elements.testCaseInput.value = "";
+    elements.testCaseExpected.value = "";
+    elements.testCaseHidden.checked = false;
+}
+
 function renderProblemWorkspace() {
     renderProblemList();
     renderProblemDetail();
     renderRunResult();
     renderReviewResult();
+}
+
+function renderAuthoringWorkspace() {
+    renderProblemAuthorForm();
+    renderAuthorTestCaseForm();
+    renderAuthorTestCases();
+}
+
+function renderProblemAuthorForm() {
+    const isEditing = state.authoringMode === "edit" && state.authoringProblemId != null;
+    const disabled = !state.session || state.savingProblem || state.deletingProblem;
+    const controls = elements.problemAuthorForm.querySelectorAll("input, select, textarea");
+
+    elements.problemAuthorMode.textContent = isEditing
+        ? `Editing #${escapeHtml(state.authoringProblemId)}`
+        : "New problem";
+    controls.forEach((control) => {
+        control.disabled = disabled;
+    });
+    elements.saveProblem.disabled = disabled;
+    elements.saveProblem.textContent = state.savingProblem
+        ? "Saving..."
+        : isEditing
+            ? "Save problem"
+            : "Create problem";
+    elements.editSelectedProblem.disabled = !state.session
+        || !state.selectedProblem
+        || state.savingProblem
+        || state.deletingProblem;
+    elements.resetProblemAuthor.disabled = !state.session
+        || state.savingProblem
+        || state.deletingProblem;
+    elements.deleteProblem.disabled = !state.session
+        || !isEditing
+        || state.savingProblem
+        || state.deletingProblem;
+    elements.deleteProblem.textContent = state.deletingProblem ? "Deleting..." : "Delete";
+}
+
+function renderAuthorTestCaseForm() {
+    const disabled = !state.session || !state.selectedProblem || state.savingTestCase;
+    const testCount = state.selectedProblem ? state.testCases.length : 0;
+    const controls = elements.testCaseForm.querySelectorAll("input, textarea");
+
+    elements.authorTestCount.textContent = state.selectedProblem
+        ? `${number(testCount)} ${plural(testCount, "test", "tests")}`
+        : "No problem";
+    controls.forEach((control) => {
+        control.disabled = disabled;
+    });
+    elements.addTestCase.disabled = disabled;
+    elements.addTestCase.textContent = state.savingTestCase
+        ? "Adding..."
+        : "Add test case";
+}
+
+function renderAuthorTestCases() {
+    elements.authorTestList.innerHTML = "";
+
+    if (!state.session) {
+        renderEmpty(elements.authorTestList, "Sign in to manage test cases.");
+        return;
+    }
+
+    if (!state.selectedProblem) {
+        renderEmpty(elements.authorTestList, "Choose a problem before adding tests.");
+        return;
+    }
+
+    if (state.testCasesError) {
+        renderEmpty(elements.authorTestList, state.testCasesError, true);
+        return;
+    }
+
+    if (!state.testCases.length) {
+        renderEmpty(elements.authorTestList, "No test cases have been added yet.");
+        return;
+    }
+
+    state.testCases.forEach((testCase, index) => {
+        const row = document.createElement("div");
+        row.className = "test-case-row";
+        row.innerHTML = `
+            <div class="test-case-heading">
+                <strong>Case ${number(index + 1)}</strong>
+                <span>${testCase.hidden ? "Hidden" : "Visible"}</span>
+            </div>
+            <div class="test-case-grid">
+                ${renderCodeSample("Input", testCase.input)}
+                ${renderCodeSample("Expected", testCase.expectedOutput)}
+            </div>
+        `;
+        elements.authorTestList.append(row);
+    });
 }
 
 function renderInterviewWorkspace() {
@@ -1544,6 +1955,9 @@ function renderError(message) {
     elements.codeRunForm.classList.add("hidden");
     elements.runResult.innerHTML = "";
     elements.reviewResult.innerHTML = "";
+    renderEmpty(elements.authorTestList, message, true);
+    elements.problemAuthorMode.textContent = "Error";
+    elements.authorTestCount.textContent = "Error";
     renderEmpty(elements.interviewList, message, true);
     renderEmpty(elements.interviewDetail, message, true);
     elements.interviewStatus.textContent = "Error";

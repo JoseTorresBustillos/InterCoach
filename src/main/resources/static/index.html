@@ -54,6 +54,7 @@
                 <a href="#progress">Progress</a>
                 <a href="#analytics">Analytics</a>
                 <a href="#problems">Problems</a>
+                <a href="#authoring">Authoring</a>
                 <a href="#interviews">Interviews</a>
                 <a href="#recommendations">Practice</a>
                 <a href="#assistant">Assistant</a>
@@ -157,6 +158,98 @@
                     </form>
                     <div id="run-result" class="run-result"></div>
                     <div id="review-result" class="review-result"></div>
+                </article>
+            </section>
+
+            <section id="authoring" class="dashboard-grid reveal" aria-label="Problem authoring">
+                <article class="workspace-card reveal">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Authoring</p>
+                            <h3>Problem details</h3>
+                        </div>
+                        <span id="problem-author-mode" class="pill">New problem</span>
+                    </div>
+                    <form id="problem-author-form" class="authoring-form">
+                        <label>
+                            Title
+                            <input id="problem-author-title" name="title" required>
+                        </label>
+                        <div class="form-grid">
+                            <label>
+                                Difficulty
+                                <select id="problem-author-difficulty" name="difficulty">
+                                    <option value="EASY">Easy</option>
+                                    <option value="MEDIUM">Medium</option>
+                                    <option value="HARD">Hard</option>
+                                </select>
+                            </label>
+                            <label>
+                                Category
+                                <input id="problem-author-category" name="category">
+                            </label>
+                        </div>
+                        <label>
+                            Tags
+                            <input id="problem-author-tags" name="tags">
+                        </label>
+                        <label>
+                            Description
+                            <textarea id="problem-author-description" name="description" rows="4" required></textarea>
+                        </label>
+                        <label>
+                            Examples
+                            <textarea id="problem-author-examples" name="examples" rows="3"></textarea>
+                        </label>
+                        <label>
+                            Constraints
+                            <textarea id="problem-author-constraints" name="constraints" rows="3"></textarea>
+                        </label>
+                        <label>
+                            Starter code
+                            <textarea id="problem-author-starter-code" name="starterCode" rows="5" spellcheck="false"></textarea>
+                        </label>
+                        <label>
+                            Solution notes
+                            <textarea id="problem-author-solution" name="solutionExplanation" rows="4"></textarea>
+                        </label>
+                        <div class="form-actions">
+                            <div class="run-actions">
+                                <button id="save-problem" class="primary-action" type="submit">Create problem</button>
+                                <button id="edit-selected-problem" class="secondary-action" type="button">Edit selected</button>
+                                <button id="reset-problem-author" class="secondary-action" type="button">New draft</button>
+                                <button id="delete-problem" class="secondary-action danger-action" type="button">Delete</button>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="problem-author-message" class="form-status"></div>
+                </article>
+
+                <article class="workspace-card reveal">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Test cases</p>
+                            <h3>Selected problem</h3>
+                        </div>
+                        <span id="author-test-count" class="pill">0 tests</span>
+                    </div>
+                    <form id="test-case-form" class="authoring-form">
+                        <label>
+                            Input
+                            <textarea id="test-case-input" name="input" rows="5" required></textarea>
+                        </label>
+                        <label>
+                            Expected output
+                            <textarea id="test-case-expected" name="expectedOutput" rows="5" required></textarea>
+                        </label>
+                        <label class="checkbox-row">
+                            <input id="test-case-hidden" name="hidden" type="checkbox">
+                            <span>Hidden</span>
+                        </label>
+                        <button id="add-test-case" class="primary-action" type="submit">Add test case</button>
+                    </form>
+                    <div id="test-case-message" class="form-status"></div>
+                    <div id="author-test-list" class="test-case-list"></div>
                 </article>
             </section>
 

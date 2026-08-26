@@ -65,9 +65,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -213,6 +215,9 @@ class ApiControllerIntegrationTest {
                 .andExpect(content().string(containsString("id=\"problems\"")))
                 .andExpect(content().string(containsString("id=\"code-run-form\"")))
                 .andExpect(content().string(containsString("id=\"submit-review\"")))
+                .andExpect(content().string(containsString("id=\"authoring\"")))
+                .andExpect(content().string(containsString("id=\"problem-author-form\"")))
+                .andExpect(content().string(containsString("id=\"test-case-form\"")))
                 .andExpect(content().string(containsString("id=\"interviews\"")))
                 .andExpect(content().string(containsString("id=\"start-interview\"")));
 
@@ -221,6 +226,9 @@ class ApiControllerIntegrationTest {
                 .andExpect(content().string(containsString("/api/problems")))
                 .andExpect(content().string(containsString("/submissions")))
                 .andExpect(content().string(containsString("/run")))
+                .andExpect(content().string(containsString("method: problemMethod")))
+                .andExpect(content().string(containsString("method: \"DELETE\"")))
+                .andExpect(content().string(containsString("/test-cases")))
                 .andExpect(content().string(containsString("/mock-interviews")))
                 .andExpect(content().string(containsString("data-interview-action=\"complete\"")))
                 .andExpect(content().string(containsString("data-interview-action=\"abandon\"")));
@@ -523,6 +531,90 @@ class ApiControllerIntegrationTest {
     }
 
     @Test
+    void problemAuthoringEndpointsAcceptValidBearerToken() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(user).value();
+        Problem existingProblem = problem(7L, "Two Sum", Difficulty.EASY, "Arrays");
+
+        given(appUserRepository.findByUsernameIgnoreCase("coder"))
+                .willReturn(Optional.of(user));
+        given(problemRepository.save(any(Problem.class)))
+                .willAnswer(invocation -> savedProblem(invocation.getArgument(0), 7L));
+        given(problemRepository.findById(7L)).willReturn(Optional.of(existingProblem));
+        given(problemRepository.existsById(7L)).willReturn(true);
+
+        mockMvc.perform(post("/api/problems")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Two Sum",
+                                  "description": "Find two values that add to a target.",
+                                  "difficulty": "EASY",
+                                  "category": "Arrays"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(7))
+                .andExpect(jsonPath("$.title").value("Two Sum"))
+                .andExpect(jsonPath("$.difficulty").value("EASY"))
+                .andExpect(jsonPath("$.category").value("Arrays"));
+
+        mockMvc.perform(put("/api/problems/7")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Pair Sum",
+                                  "description": "Return indices for a matching pair.",
+                                  "difficulty": "MEDIUM",
+                                  "category": "Hash Maps"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(7))
+                .andExpect(jsonPath("$.title").value("Pair Sum"))
+                .andExpect(jsonPath("$.difficulty").value("MEDIUM"))
+                .andExpect(jsonPath("$.category").value("Hash Maps"));
+
+        mockMvc.perform(delete("/api/problems/7")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void testCaseAuthoringEndpointAcceptsValidBearerToken() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(user).value();
+        Problem problem = problem(1L, "Two Sum", Difficulty.EASY, "Arrays");
+
+        given(appUserRepository.findByUsernameIgnoreCase("coder"))
+                .willReturn(Optional.of(user));
+        given(problemRepository.findById(1L)).willReturn(Optional.of(problem));
+        given(testCaseRepository.save(any(TestCase.class)))
+                .willAnswer(invocation -> savedTestCase(invocation.getArgument(0), 11L));
+
+        mockMvc.perform(post("/api/problems/1/test-cases")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "input": "nums=[2,7,11,15], target=9",
+                                  "expectedOutput": "[0,1]",
+                                  "hidden": true
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(11))
+                .andExpect(jsonPath("$.problemId").value(1))
+                .andExpect(jsonPath("$.input").value("nums=[2,7,11,15], target=9"))
+                .andExpect(jsonPath("$.expectedOutput").value("[0,1]"))
+                .andExpect(jsonPath("$.hidden").value(true));
+    }
+
+    @Test
     void semanticSearchEndpointAcceptsValidBearerToken() throws Exception {
         AppUser user = user("coder");
         user.setPasswordHash(passwordEncoder.encode("password123"));
@@ -697,6 +789,19 @@ class ApiControllerIntegrationTest {
         ReflectionTestUtils.setField(user, "id", 42L);
         ReflectionTestUtils.setField(user, "createdAt", Instant.now());
         return user;
+    }
+
+    private Problem savedProblem(Problem problem, Long id) {
+        ReflectionTestUtils.setField(problem, "id", id);
+        ReflectionTestUtils.setField(problem, "createdAt", Instant.now());
+        ReflectionTestUtils.setField(problem, "updatedAt", Instant.now());
+        return problem;
+    }
+
+    private TestCase savedTestCase(TestCase testCase, Long id) {
+        ReflectionTestUtils.setField(testCase, "id", id);
+        ReflectionTestUtils.setField(testCase, "createdAt", Instant.now());
+        return testCase;
     }
 
     @TestConfiguration

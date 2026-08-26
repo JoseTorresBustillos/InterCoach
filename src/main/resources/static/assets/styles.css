@@ -226,7 +226,8 @@ textarea,
 .assistant-form,
 .account-form,
 .code-run-form,
-.interview-form {
+.interview-form,
+.authoring-form {
     display: grid;
     gap: 12px;
 }
@@ -275,6 +276,12 @@ textarea {
 
 #code-editor {
     min-height: 300px;
+}
+
+#code-editor,
+#problem-author-starter-code,
+#test-case-input,
+#test-case-expected {
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
     font-size: 0.9rem;
     line-height: 1.5;
@@ -301,6 +308,10 @@ textarea:focus {
     padding: 0 14px;
 }
 
+.danger-action {
+    color: #ffd1bf;
+}
+
 .primary-action:hover,
 .primary-action:focus-visible,
 .secondary-action:hover,
@@ -308,6 +319,12 @@ textarea:focus {
     border-color: rgba(196, 138, 97, 0.58);
     box-shadow: var(--shadow), var(--glow-copper);
     transform: translateY(-1px);
+}
+
+.danger-action:hover,
+.danger-action:focus-visible {
+    border-color: rgba(216, 132, 104, 0.56);
+    box-shadow: 0 0 28px rgba(216, 132, 104, 0.2);
 }
 
 .session-row {
@@ -425,6 +442,12 @@ textarea:focus {
 
 .wide-card {
     grid-column: 1 / -1;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
 }
 
 .workspace-card {
@@ -628,6 +651,24 @@ textarea:focus {
     font-size: 0.86rem;
     line-height: 1.45;
     white-space: pre-wrap;
+}
+
+.checkbox-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    width: fit-content;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(11, 15, 12, 0.42);
+    padding: 10px 12px;
+}
+
+.checkbox-row input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--green);
 }
 
 .test-case-grid,
@@ -913,6 +954,7 @@ textarea:focus {
     .dashboard-grid,
     .metric-grid,
     .signal-row,
+    .form-grid,
     .test-case-grid,
     .run-case-grid {
         grid-template-columns: 1fr;
