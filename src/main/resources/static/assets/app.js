@@ -16,8 +16,10 @@ const state = {
     testCases: [],
     testCasesError: null,
     runResult: null,
+    reviewResult: null,
     problemDrafts: {},
-    runningCode: false
+    runningCode: false,
+    submittingReview: false
 };
 
 const elements = {
@@ -54,8 +56,10 @@ const elements = {
     codeRunForm: document.querySelector("#code-run-form"),
     codeEditor: document.querySelector("#code-editor"),
     runCode: document.querySelector("#run-code"),
+    submitReview: document.querySelector("#submit-review"),
     codeRunStatus: document.querySelector("#code-run-status"),
     runResult: document.querySelector("#run-result"),
+    reviewResult: document.querySelector("#review-result"),
     assistantForm: document.querySelector("#assistant-form"),
     assistantQuestion: document.querySelector("#assistant-question"),
     assistantAnswer: document.querySelector("#assistant-answer"),
@@ -82,6 +86,7 @@ elements.refreshData.addEventListener("click", loadWorkspace);
 elements.problemList.addEventListener("click", handleProblemSelection);
 elements.recommendationList.addEventListener("click", handleRecommendationOpen);
 elements.codeRunForm.addEventListener("submit", handleCodeRun);
+elements.submitReview.addEventListener("click", handleReviewSubmission);
 elements.codeEditor.addEventListener("input", handleCodeDraft);
 elements.assistantForm.addEventListener("submit", handleAssistantQuestion);
 elements.profileForm.addEventListener("submit", handleProfileUpdate);
@@ -170,8 +175,10 @@ function signOut() {
     state.testCases = [];
     state.testCasesError = null;
     state.runResult = null;
+    state.reviewResult = null;
     state.problemDrafts = {};
     state.runningCode = false;
+    state.submittingReview = false;
     elements.assistantAnswer.innerHTML = "";
     clearFormStatus(elements.profileMessage);
     clearFormStatus(elements.passwordMessage);
@@ -217,6 +224,25 @@ async function loadWorkspace() {
         setConnection(error.message);
         renderError(error.message);
     }
+}
+
+async function refreshWorkspaceSummaries() {
+    const userId = state.session?.user?.id;
+
+    if (!userId) {
+        return;
+    }
+
+    const [dashboard, analytics, recommendations] = await Promise.all([
+        api(`/api/users/${userId}/dashboard`),
+        api(`/api/users/${userId}/analytics`),
+        api(`/api/users/${userId}/recommendations`)
+    ]);
+
+    state.dashboard = dashboard;
+    state.analytics = analytics;
+    state.recommendations = recommendations;
+    renderWorkspace();
 }
 
 async function loadSelectedProblemDetails() {
@@ -329,6 +355,58 @@ async function handleCodeRun(event) {
         setConnection(error.message);
     } finally {
         state.runningCode = false;
+        renderProblemWorkspace();
+    }
+}
+
+async function handleReviewSubmission() {
+    if (!state.session) {
+        renderReviewError("Sign in before submitting for review.");
+        return;
+    }
+
+    if (!state.selectedProblem) {
+        renderReviewError("Choose a problem first.");
+        return;
+    }
+
+    const submittedCode = elements.codeEditor.value;
+
+    if (!submittedCode.trim()) {
+        renderReviewError("Add Java code before asking for AI review.");
+        return;
+    }
+
+    state.problemDrafts[state.selectedProblem.id] = submittedCode;
+    state.submittingReview = true;
+    state.reviewResult = null;
+    renderProblemWorkspace();
+    setConnection("Submitting review");
+
+    try {
+        state.reviewResult = await api(
+            `/api/problems/${state.selectedProblem.id}/submissions`,
+            {
+                method: "POST",
+                body: JSON.stringify({
+                    userId: state.session.user.id,
+                    language: "Java",
+                    submittedCode
+                })
+            }
+        );
+
+        try {
+            await refreshWorkspaceSummaries();
+            setConnection(statusLabel(state.reviewResult.status));
+        } catch (refreshError) {
+            setConnection("Review saved; refresh failed");
+        }
+    } catch (error) {
+        state.reviewResult = {error: error.message};
+        setConnection(error.message);
+    } finally {
+        state.submittingReview = false;
         renderProblemWorkspace();
     }
 }
@@ -602,6 +680,7 @@ function syncSelectedProblem() {
         state.testCases = [];
         state.testCasesError = null;
         state.runResult = null;
+        state.reviewResult = null;
         return;
     }
 
@@ -618,6 +697,7 @@ function syncSelectedProblem() {
         state.testCases = [];
         state.testCasesError = null;
         state.runResult = null;
+        state.reviewResult = null;
     }
 }
 
@@ -639,6 +719,7 @@ async function selectProblem(problemId) {
     state.testCases = [];
     state.testCasesError = null;
     state.runResult = null;
+    state.reviewResult = null;
     ensureProblemDraft(problem);
     renderProblemWorkspace();
     setConnection("Loading problem");
@@ -650,6 +731,7 @@ function renderProblemWorkspace() {
     renderProblemList();
     renderProblemDetail();
     renderRunResult();
+    renderReviewResult();
 }
 
 function renderProblemList() {
@@ -694,10 +776,11 @@ function renderProblemList() {
 function renderProblemDetail() {
     const problem = state.selectedProblem;
     const canUseProblem = Boolean(state.session && problem);
-    const canRun = canUseProblem && !state.runningCode;
+    const canEdit = canUseProblem && !state.runningCode && !state.submittingReview;
     elements.codeRunForm.classList.toggle("hidden", !canUseProblem);
-    elements.codeEditor.disabled = !canRun;
-    elements.runCode.disabled = !canRun;
+    elements.codeEditor.disabled = !canEdit;
+    elements.runCode.disabled = !canEdit;
+    elements.submitReview.disabled = !canEdit;
 
     if (!state.session) {
         elements.problemStatus.textContent = "Signed out";
@@ -726,14 +809,14 @@ function renderProblemDetail() {
     elements.codeEditor.dataset.problemId = problemId;
     elements.problemStatus.textContent = state.runningCode
         ? "Running"
+        : state.submittingReview
+            ? "Reviewing"
         : `${number(visibleCases.length)} visible ${plural(
                 visibleCases.length,
                 "test",
                 "tests"
         )}`;
-    elements.codeRunStatus.textContent = state.runningCode
-        ? "Running visible tests..."
-        : "Java only";
+    elements.codeRunStatus.textContent = workbenchStatus();
 
     elements.problemDetail.innerHTML = `
         <div class="problem-title-block">
@@ -809,6 +892,73 @@ function renderRunResult() {
 
 function renderRunError(message) {
     renderEmpty(elements.runResult, message, true);
+}
+
+function renderReviewResult() {
+    const result = state.reviewResult;
+
+    if (!state.session || !state.selectedProblem) {
+        elements.reviewResult.innerHTML = "";
+        return;
+    }
+
+    if (state.submittingReview) {
+        renderEmpty(elements.reviewResult, "Waiting for AI review...");
+        return;
+    }
+
+    if (!result) {
+        renderEmpty(
+            elements.reviewResult,
+            "Submit the current draft when you want structured AI feedback."
+        );
+        return;
+    }
+
+    if (result.error) {
+        renderEmpty(elements.reviewResult, result.error, true);
+        return;
+    }
+
+    const failed = result.status === "FAILED";
+    const summary = result.feedbackSummary || result.aiFeedback || "";
+    const details = [
+        feedbackItem("Correctness", result.correctness),
+        feedbackItem("Bugs", result.bugs),
+        feedbackItem("Edge Cases", result.edgeCases),
+        feedbackItem("Time Complexity", result.timeComplexity),
+        feedbackItem("Space Complexity", result.spaceComplexity),
+        feedbackItem("Hint", result.hint),
+        feedbackItem("Suggested Improvement", result.suggestedImprovement)
+    ].filter(Boolean).join("");
+
+    elements.reviewResult.innerHTML = `
+        <div class="review-summary ${failed ? "failed" : "reviewed"}">
+            <div>
+                <strong>${escapeHtml(statusLabel(result.status))}</strong>
+                <span>${escapeHtml(formatDateTime(result.createdAt))}</span>
+            </div>
+            <span>#${escapeHtml(result.id || "-")}</span>
+        </div>
+        ${summary ? `<p class="review-copy">${multiline(summary)}</p>` : ""}
+        ${details ? `<div class="feedback-grid">${details}</div>` : ""}
+    `;
+}
+
+function renderReviewError(message) {
+    renderEmpty(elements.reviewResult, message, true);
+}
+
+function workbenchStatus() {
+    if (state.runningCode) {
+        return "Running visible tests...";
+    }
+
+    if (state.submittingReview) {
+        return "Submitting for AI review...";
+    }
+
+    return "Java only";
 }
 
 function renderRecommendations(recommendations) {
@@ -952,6 +1102,19 @@ function renderCodeSample(label, value) {
     `;
 }
 
+function feedbackItem(label, value) {
+    if (!value) {
+        return "";
+    }
+
+    return `
+        <div class="feedback-item">
+            <span>${escapeHtml(label)}</span>
+            <p>${multiline(value)}</p>
+        </div>
+    `;
+}
+
 function defaultJavaSolution(problem) {
     const title = String(problem?.title || "Selected Problem")
         .replaceAll("*/", "")
@@ -1060,6 +1223,7 @@ function renderError(message) {
     renderEmpty(elements.problemDetail, message, true);
     elements.codeRunForm.classList.add("hidden");
     elements.runResult.innerHTML = "";
+    elements.reviewResult.innerHTML = "";
     renderEmpty(elements.recommendationList, message, true);
 }
 
@@ -1110,6 +1274,19 @@ function formatDate(value) {
         month: "short",
         day: "numeric"
     }).format(new Date(`${value}T00:00:00Z`));
+}
+
+function formatDateTime(value) {
+    if (!value) {
+        return "Just now";
+    }
+
+    return new Intl.DateTimeFormat(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+    }).format(new Date(value));
 }
 
 function escapeHtml(value) {

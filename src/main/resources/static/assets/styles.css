@@ -68,6 +68,8 @@ textarea,
 .code-sample,
 .run-summary,
 .run-case,
+.review-summary,
+.feedback-item,
 .signal-row div {
     transition:
         background-color 180ms ease,
@@ -435,8 +437,10 @@ textarea:focus {
 .problem-list,
 .problem-detail,
 .run-result,
+.review-result,
 .run-case-list,
-.test-case-list {
+.test-case-list,
+.feedback-grid {
     display: grid;
     gap: 10px;
 }
@@ -451,7 +455,8 @@ textarea:focus {
 .operation-row,
 .problem-row,
 .test-case-row,
-.run-case {
+.run-case,
+.feedback-item {
     display: grid;
     gap: 8px;
     padding: 12px;
@@ -468,6 +473,7 @@ textarea:focus {
 .problem-row:focus-visible,
 .test-case-row:hover,
 .run-case:hover,
+.feedback-item:hover,
 .signal-row div:hover {
     border-color: rgba(196, 138, 97, 0.42);
     box-shadow: var(--glow-copper);
@@ -503,7 +509,9 @@ textarea:focus {
 .test-case-heading,
 .run-case-heading,
 .run-summary,
+.review-summary,
 .form-actions,
+.run-actions,
 .recommendation-footer {
     display: flex;
     align-items: center;
@@ -605,6 +613,11 @@ textarea:focus {
     gap: 4px;
 }
 
+.run-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+}
+
 .run-summary.passed {
     border-color: rgba(143, 184, 131, 0.5);
     box-shadow: var(--glow-green);
@@ -617,6 +630,55 @@ textarea:focus {
 
 .run-case.passed {
     border-color: rgba(143, 184, 131, 0.34);
+}
+
+.review-summary {
+    border: 1px solid rgba(127, 168, 153, 0.32);
+    border-radius: 8px;
+    background: rgba(11, 15, 12, 0.42);
+    padding: 14px;
+}
+
+.review-summary.reviewed {
+    border-color: rgba(143, 184, 131, 0.5);
+    box-shadow: var(--glow-green);
+}
+
+.review-summary.failed {
+    border-color: rgba(216, 132, 104, 0.42);
+}
+
+.review-summary div,
+.feedback-item {
+    display: grid;
+    gap: 6px;
+}
+
+.review-copy {
+    margin: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(7, 10, 8, 0.52);
+    color: #f3ead9;
+    padding: 14px;
+    line-height: 1.55;
+}
+
+.feedback-grid {
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.feedback-item span {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.feedback-item p {
+    margin: 0;
+    color: #efe5d4;
+    line-height: 1.5;
 }
 
 .recommendation-footer p {
@@ -806,8 +868,10 @@ textarea:focus {
     }
 
     .form-actions,
+    .run-actions,
     .recommendation-footer,
-    .run-summary {
+    .run-summary,
+    .review-summary {
         align-items: stretch;
         flex-direction: column;
     }

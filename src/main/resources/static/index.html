@@ -147,11 +147,15 @@
                         <label for="code-editor">Java solution</label>
                         <textarea id="code-editor" rows="13" spellcheck="false"></textarea>
                         <div class="form-actions">
-                            <button id="run-code" class="primary-action" type="submit">Run visible tests</button>
+                            <div class="run-actions">
+                                <button id="run-code" class="primary-action" type="submit">Run visible tests</button>
+                                <button id="submit-review" class="secondary-action" type="button">Submit for AI review</button>
+                            </div>
                             <span id="code-run-status" class="form-note"></span>
                         </div>
                     </form>
                     <div id="run-result" class="run-result"></div>
+                    <div id="review-result" class="review-result"></div>
                 </article>
             </section>
 
