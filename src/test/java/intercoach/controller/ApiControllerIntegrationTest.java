@@ -207,6 +207,19 @@ class ApiControllerIntegrationTest {
     }
 
     @Test
+    void frontendAssetsIncludeProblemWorkflow() throws Exception {
+        mockMvc.perform(get("/index.html"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("id=\"problems\"")))
+                .andExpect(content().string(containsString("id=\"code-run-form\"")));
+
+        mockMvc.perform(get("/assets/app.js"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/api/problems")))
+                .andExpect(content().string(containsString("/run")));
+    }
+
+    @Test
     void protectedEndpointRequiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/problems"))
                 .andExpect(status().isUnauthorized())

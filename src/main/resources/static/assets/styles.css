@@ -63,6 +63,11 @@ textarea,
 .breakdown-row,
 .recommendation-row,
 .operation-row,
+.problem-row,
+.test-case-row,
+.code-sample,
+.run-summary,
+.run-case,
 .signal-row div {
     transition:
         background-color 180ms ease,
@@ -212,7 +217,8 @@ textarea,
 
 .auth-form,
 .assistant-form,
-.account-form {
+.account-form,
+.code-run-form {
     display: grid;
     gap: 12px;
 }
@@ -238,6 +244,14 @@ textarea {
 
 textarea {
     resize: vertical;
+}
+
+#code-editor {
+    min-height: 300px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    tab-size: 4;
 }
 
 input:focus,
@@ -417,7 +431,12 @@ textarea:focus {
 .breakdown-list,
 .recommendation-list,
 .assistant-answer,
-.operations-grid {
+.operations-grid,
+.problem-list,
+.problem-detail,
+.run-result,
+.run-case-list,
+.test-case-list {
     display: grid;
     gap: 10px;
 }
@@ -429,7 +448,10 @@ textarea:focus {
 .trend-row,
 .breakdown-row,
 .recommendation-row,
-.operation-row {
+.operation-row,
+.problem-row,
+.test-case-row,
+.run-case {
     display: grid;
     gap: 8px;
     padding: 12px;
@@ -442,10 +464,181 @@ textarea:focus {
 .breakdown-row:hover,
 .recommendation-row:hover,
 .operation-row:hover,
+.problem-row:hover,
+.problem-row:focus-visible,
+.test-case-row:hover,
+.run-case:hover,
 .signal-row div:hover {
     border-color: rgba(196, 138, 97, 0.42);
     box-shadow: var(--glow-copper);
     transform: translateY(-1px);
+}
+
+.problem-row {
+    width: 100%;
+    text-align: left;
+    color: var(--text);
+}
+
+.problem-row.active {
+    border-color: rgba(143, 184, 131, 0.5);
+    background: rgba(143, 184, 131, 0.12);
+    box-shadow: var(--glow-green);
+}
+
+.problem-row-main,
+.problem-title-block {
+    display: grid;
+    gap: 6px;
+}
+
+.problem-row-main span,
+.problem-description {
+    color: #d5d0c2;
+    line-height: 1.55;
+}
+
+.problem-row-meta,
+.problem-meta,
+.test-case-heading,
+.run-case-heading,
+.run-summary,
+.form-actions,
+.recommendation-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.problem-row-meta,
+.problem-meta,
+.test-case-heading,
+.run-case-heading,
+.form-note {
+    color: var(--muted);
+    font-size: 0.84rem;
+}
+
+.problem-row-meta span,
+.problem-meta span {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 8px;
+    background: rgba(238, 232, 219, 0.05);
+}
+
+.problem-title-block strong {
+    font-size: 1.2rem;
+}
+
+.problem-description {
+    margin: 0;
+}
+
+.tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.tag-list span {
+    border: 1px solid rgba(127, 168, 153, 0.28);
+    border-radius: 999px;
+    padding: 4px 8px;
+    background: rgba(127, 168, 153, 0.08);
+    color: #d8ece1;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.problem-block,
+.code-sample {
+    display: grid;
+    gap: 6px;
+}
+
+.problem-block > span,
+.code-sample > span {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.problem-block pre,
+.code-sample pre {
+    overflow: auto;
+    margin: 0;
+    max-height: 280px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(7, 10, 8, 0.72);
+    color: #f3ead9;
+    padding: 12px;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    font-size: 0.86rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
+.test-case-grid,
+.run-case-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.run-case-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.run-summary {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(11, 15, 12, 0.42);
+    padding: 14px;
+}
+
+.run-summary div {
+    display: grid;
+    gap: 4px;
+}
+
+.run-summary.passed {
+    border-color: rgba(143, 184, 131, 0.5);
+    box-shadow: var(--glow-green);
+}
+
+.run-summary.failed,
+.run-case.failed {
+    border-color: rgba(216, 132, 104, 0.42);
+}
+
+.run-case.passed {
+    border-color: rgba(143, 184, 131, 0.34);
+}
+
+.recommendation-footer p {
+    margin: 0;
+    color: #d5d0c2;
+    line-height: 1.45;
+}
+
+.inline-action {
+    min-height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: rgba(25, 31, 25, 0.86);
+    color: var(--text);
+    padding: 0 12px;
+    font-weight: 800;
+}
+
+.inline-action:hover,
+.inline-action:focus-visible {
+    border-color: rgba(143, 184, 131, 0.44);
+    box-shadow: var(--glow-green);
 }
 
 .trend-meta,
@@ -606,8 +799,17 @@ textarea:focus {
 
     .dashboard-grid,
     .metric-grid,
-    .signal-row {
+    .signal-row,
+    .test-case-grid,
+    .run-case-grid {
         grid-template-columns: 1fr;
+    }
+
+    .form-actions,
+    .recommendation-footer,
+    .run-summary {
+        align-items: stretch;
+        flex-direction: column;
     }
 
     .metric-tile {

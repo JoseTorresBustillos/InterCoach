@@ -53,6 +53,7 @@
             <nav class="nav-list" aria-label="Primary">
                 <a href="#progress">Progress</a>
                 <a href="#analytics">Analytics</a>
+                <a href="#problems">Problems</a>
                 <a href="#recommendations">Practice</a>
                 <a href="#assistant">Assistant</a>
                 <a href="#account">Account</a>
@@ -118,6 +119,39 @@
                         </div>
                     </div>
                     <div id="category-breakdown" class="breakdown-list"></div>
+                </article>
+            </section>
+
+            <section id="problems" class="dashboard-grid reveal" aria-label="Problems">
+                <article class="workspace-card reveal">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Problem bank</p>
+                            <h3>Choose a prompt</h3>
+                        </div>
+                        <span id="problem-count" class="pill">0 problems</span>
+                    </div>
+                    <div id="problem-list" class="problem-list"></div>
+                </article>
+
+                <article class="workspace-card problem-workbench reveal">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Workspace</p>
+                            <h3>Run Java</h3>
+                        </div>
+                        <span id="problem-status" class="pill">Choose problem</span>
+                    </div>
+                    <div id="problem-detail" class="problem-detail"></div>
+                    <form id="code-run-form" class="code-run-form">
+                        <label for="code-editor">Java solution</label>
+                        <textarea id="code-editor" rows="13" spellcheck="false"></textarea>
+                        <div class="form-actions">
+                            <button id="run-code" class="primary-action" type="submit">Run visible tests</button>
+                            <span id="code-run-status" class="form-note"></span>
+                        </div>
+                    </form>
+                    <div id="run-result" class="run-result"></div>
                 </article>
             </section>
 
