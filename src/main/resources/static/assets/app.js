@@ -2073,6 +2073,22 @@ function renderOperations() {
         operationRow("Visible tests", status.visibleTestCasesOnly ? "Only" : "All"),
         operationRow("Workspace", status.temporaryWorkspacePerRun ? "Temporary" : "Shared"),
         operationRow("Environment", status.childEnvironmentSanitized ? "Sanitized" : "Inherited"),
+        operationRow("Isolation", status.hostPolicy?.isolation),
+        operationRow("Local execution", status.hostPolicy?.localExecutionEnabled ? "Enabled" : "Disabled"),
+        operationRow("OS isolation", status.hostPolicy?.osLevelIsolation ? "Enabled" : "Not enabled"),
+        operationRow("Workspace policy", status.hostPolicy?.workspacePolicy),
+        operationRow("Runs", number(status.runtime?.totalRuns)),
+        operationRow("Successful runs", number(status.runtime?.successfulRuns)),
+        operationRow("Failed runs", number(status.runtime?.failedRuns)),
+        operationRow("Compile errors", number(status.runtime?.compileErrorRuns)),
+        operationRow("Runtime errors", number(status.runtime?.runtimeErrorRuns)),
+        operationRow("Timeouts", number(status.runtime?.timeoutRuns)),
+        operationRow("Wrong answers", number(status.runtime?.wrongAnswerRuns)),
+        operationRow("Last status", statusLabel(status.runtime?.lastStatus)),
+        operationRow("Last run", status.runtime?.lastRunAt
+            ? formatDateTime(status.runtime.lastRunAt)
+            : "Never"),
+        operationRow("Avg duration", milliseconds(status.runtime?.averageDurationMs)),
         operationRow("Docker image", status.docker?.image),
         operationRow("Docker CPU", number(status.docker?.cpuCount)),
         operationRow("Docker memory", megabytes(status.docker?.memoryMegabytes)),
@@ -2157,6 +2173,10 @@ function number(value) {
 
 function seconds(value) {
     return `${number(value)}s`;
+}
+
+function milliseconds(value) {
+    return `${number(value)} ms`;
 }
 
 function characters(value) {

@@ -34,15 +34,18 @@ public class CodeExecutionService {
     private final ProblemRepository problemRepository;
     private final TestCaseRepository testCaseRepository;
     private final CodeExecutionProperties properties;
+    private final CodeExecutionRunMonitor runMonitor;
 
     public CodeExecutionService(
             ProblemRepository problemRepository,
             TestCaseRepository testCaseRepository,
-            CodeExecutionProperties properties
+            CodeExecutionProperties properties,
+            CodeExecutionRunMonitor runMonitor
     ) {
         this.problemRepository = problemRepository;
         this.testCaseRepository = testCaseRepository;
         this.properties = properties;
+        this.runMonitor = runMonitor;
     }
 
     public CodeExecutionResponse runCode(
@@ -55,13 +58,22 @@ public class CodeExecutionService {
             );
         }
 
+        Instant startedAt = Instant.now();
+
         if (!JAVA_LANGUAGE.equalsIgnoreCase(request.getLanguage())) {
-            return unsupportedLanguageResponse(problemId, request.getLanguage());
+            return monitored(unsupportedLanguageResponse(
+                    problemId,
+                    request.getLanguage(),
+                    elapsedMs(startedAt)
+            ));
         }
 
         if (request.getSubmittedCode().length()
                 > properties.getMaxSourceCharacters()) {
-            return sourceTooLargeResponse(problemId);
+            return monitored(sourceTooLargeResponse(
+                    problemId,
+                    elapsedMs(startedAt)
+            ));
         }
 
         // User-triggered runs execute only visible cases so hidden cases stay hidden.
@@ -72,10 +84,9 @@ public class CodeExecutionService {
                 .toList();
 
         if (visibleTestCases.isEmpty()) {
-            return noTestsResponse(problemId);
+            return monitored(noTestsResponse(problemId, elapsedMs(startedAt)));
         }
 
-        Instant startedAt = Instant.now();
         Path workspace = null;
 
         try {
@@ -90,7 +101,7 @@ public class CodeExecutionService {
             String compileOutput = compile(workspace);
 
             if (!compileOutput.isBlank()) {
-                return new CodeExecutionResponse(
+                return monitored(new CodeExecutionResponse(
                         problemId,
                         CodeExecutionStatus.COMPILE_ERROR,
                         false,
@@ -99,7 +110,7 @@ public class CodeExecutionService {
                         elapsedMs(startedAt),
                         compileOutput,
                         List.of()
-                );
+                ));
             }
 
             Path executionWorkspace = workspace;
@@ -107,13 +118,13 @@ public class CodeExecutionService {
                     .map(testCase -> runTestCase(executionWorkspace, testCase))
                     .toList();
 
-            return executionResponse(
+            return monitored(executionResponse(
                     problemId,
                     elapsedMs(startedAt),
                     results
-            );
+            ));
         } catch (IOException exception) {
-            return new CodeExecutionResponse(
+            return monitored(new CodeExecutionResponse(
                     problemId,
                     CodeExecutionStatus.RUNTIME_ERROR,
                     false,
@@ -123,7 +134,7 @@ public class CodeExecutionService {
                     "Code execution workspace could not be prepared: "
                             + exception.getMessage(),
                     List.of()
-            );
+            ));
         } finally {
             cleanup(workspace);
         }
@@ -294,7 +305,8 @@ public class CodeExecutionService {
 
     private CodeExecutionResponse unsupportedLanguageResponse(
             Long problemId,
-            String language
+            String language,
+            long durationMs
     ) {
         return new CodeExecutionResponse(
                 problemId,
@@ -302,21 +314,24 @@ public class CodeExecutionService {
                 false,
                 0,
                 0,
-                0,
+                durationMs,
                 "Only Java execution is currently supported. Received: "
                         + language,
                 List.of()
         );
     }
 
-    private CodeExecutionResponse sourceTooLargeResponse(Long problemId) {
+    private CodeExecutionResponse sourceTooLargeResponse(
+            Long problemId,
+            long durationMs
+    ) {
         return new CodeExecutionResponse(
                 problemId,
                 CodeExecutionStatus.SOURCE_TOO_LARGE,
                 false,
                 0,
                 0,
-                0,
+                durationMs,
                 "Submitted source exceeds the "
                         + properties.getMaxSourceCharacters()
                         + " character limit.",
@@ -324,17 +339,25 @@ public class CodeExecutionService {
         );
     }
 
-    private CodeExecutionResponse noTestsResponse(Long problemId) {
+    private CodeExecutionResponse noTestsResponse(
+            Long problemId,
+            long durationMs
+    ) {
         return new CodeExecutionResponse(
                 problemId,
                 CodeExecutionStatus.NO_TESTS,
                 false,
                 0,
                 0,
-                0,
+                durationMs,
                 "",
                 List.of()
         );
+    }
+
+    private CodeExecutionResponse monitored(CodeExecutionResponse response) {
+        runMonitor.record(response);
+        return response;
     }
 
     private void writeInput(Process process, String input) throws IOException {

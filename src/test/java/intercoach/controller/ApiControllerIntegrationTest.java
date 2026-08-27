@@ -23,6 +23,7 @@ import intercoach.service.AiFeedbackService;
 import intercoach.service.AppUserService;
 import intercoach.service.AuthService;
 import intercoach.service.CodeExecutionOperationsService;
+import intercoach.service.CodeExecutionRunMonitor;
 import intercoach.service.CodeExecutionService;
 import intercoach.service.MockInterviewService;
 import intercoach.service.ProblemService;
@@ -130,6 +131,7 @@ class ApiControllerIntegrationTest {
             AppUserService.class,
             AuthService.class,
             CodeExecutionOperationsService.class,
+            CodeExecutionRunMonitor.class,
             CodeExecutionService.class,
             MockInterviewService.class,
             ProblemService.class,
@@ -235,7 +237,9 @@ class ApiControllerIntegrationTest {
                 .andExpect(content().string(containsString("data-interview-action=\"complete\"")))
                 .andExpect(content().string(containsString("data-interview-action=\"abandon\"")))
                 .andExpect(content().string(containsString("loadAdminUsers")))
-                .andExpect(content().string(containsString("handleAdminUserCreate")));
+                .andExpect(content().string(containsString("handleAdminUserCreate")))
+                .andExpect(content().string(containsString("status.runtime?.totalRuns")))
+                .andExpect(content().string(containsString("status.hostPolicy?.isolation")));
     }
 
     @Test
@@ -410,6 +414,16 @@ class ApiControllerIntegrationTest {
                 .andExpect(jsonPath("$.visibleTestCasesOnly").value(true))
                 .andExpect(jsonPath("$.temporaryWorkspacePerRun").value(true))
                 .andExpect(jsonPath("$.childEnvironmentSanitized").value(true))
+                .andExpect(jsonPath("$.hostPolicy.isolation")
+                        .value("Local child process"))
+                .andExpect(jsonPath("$.hostPolicy.localExecutionEnabled")
+                        .value(true))
+                .andExpect(jsonPath("$.hostPolicy.osLevelIsolation")
+                        .value(false))
+                .andExpect(jsonPath("$.runtime.totalRuns").value(0))
+                .andExpect(jsonPath("$.runtime.successfulRuns").value(0))
+                .andExpect(jsonPath("$.runtime.failedRuns").value(0))
+                .andExpect(jsonPath("$.runtime.averageDurationMs").value(0))
                 .andExpect(jsonPath("$.docker.image").value("eclipse-temurin:21-jdk"))
                 .andExpect(jsonPath("$.docker.networkDisabled").value(true))
                 .andExpect(jsonPath("$.docker.readOnlyRootFilesystem").value(true));

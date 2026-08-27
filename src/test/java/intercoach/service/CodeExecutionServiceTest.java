@@ -3,6 +3,7 @@ package intercoach.service;
 import intercoach.config.CodeExecutionProperties;
 import intercoach.dto.CodeExecutionRequest;
 import intercoach.dto.CodeExecutionResponse;
+import intercoach.dto.CodeExecutionRuntimeStatsResponse;
 import intercoach.dto.CodeExecutionStatus;
 import intercoach.dto.CodeExecutionTestCaseStatus;
 import intercoach.exception.ResourceNotFoundException;
@@ -33,15 +34,18 @@ class CodeExecutionServiceTest {
     private TestCaseRepository testCaseRepository;
 
     private CodeExecutionService codeExecutionService;
+    private CodeExecutionRunMonitor runMonitor;
     private CodeExecutionProperties properties;
 
     @BeforeEach
     void setUp() {
         properties = executionProperties();
+        runMonitor = new CodeExecutionRunMonitor();
         codeExecutionService = new CodeExecutionService(
                 problemRepository,
                 testCaseRepository,
-                properties
+                properties,
+                runMonitor
         );
     }
 
@@ -132,6 +136,33 @@ class CodeExecutionServiceTest {
                 .isEqualTo(CodeExecutionStatus.UNSUPPORTED_LANGUAGE);
         assertThat(response.compileOutput())
                 .contains("Only Java execution is currently supported");
+    }
+
+    @Test
+    void runCodeRecordsExecutionStatistics() {
+        given(problemRepository.existsById(1L)).willReturn(true);
+        given(testCaseRepository.findByProblemId(1L))
+                .willReturn(List.of(testCase(10L, "hello", "expected", false)));
+
+        codeExecutionService.runCode(
+                1L,
+                request("System.out.println('bad');", "Python")
+        );
+        codeExecutionService.runCode(1L, request("""
+                public class Main {
+                    public static void main(String[] args) {
+                        System.out.println("actual");
+                    }
+                }
+                """, "Java"));
+        CodeExecutionRuntimeStatsResponse snapshot = runMonitor.snapshot();
+
+        assertThat(snapshot.totalRuns()).isEqualTo(2);
+        assertThat(snapshot.failedRuns()).isEqualTo(2);
+        assertThat(snapshot.unsupportedLanguageRuns()).isEqualTo(1);
+        assertThat(snapshot.wrongAnswerRuns()).isEqualTo(1);
+        assertThat(snapshot.lastStatus()).isEqualTo("WRONG_ANSWER");
+        assertThat(snapshot.lastRunAt()).isNotNull();
     }
 
     @Test

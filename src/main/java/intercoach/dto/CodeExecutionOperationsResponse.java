@@ -12,6 +12,8 @@ public record CodeExecutionOperationsResponse(
         boolean visibleTestCasesOnly,
         boolean temporaryWorkspacePerRun,
         boolean childEnvironmentSanitized,
+        CodeExecutionHostPolicyResponse hostPolicy,
+        CodeExecutionRuntimeStatsResponse runtime,
         CodeExecutionDockerSettingsResponse docker
 ) {
 }
