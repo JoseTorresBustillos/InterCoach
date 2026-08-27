@@ -44,7 +44,10 @@ public class TestCaseService {
         return toResponse(savedTestCase);
     }
 
-    public List<TestCaseResponse> getTestCasesForProblem(Long problemId) {
+    public List<TestCaseResponse> getTestCasesForProblem(
+            Long problemId,
+            boolean includeHidden
+    ) {
         if (!problemRepository.existsById(problemId)) {
             throw new ResourceNotFoundException(
                     "Problem not found with id: " + problemId
@@ -53,6 +56,7 @@ public class TestCaseService {
 
         return testCaseRepository.findByProblemId(problemId)
                 .stream()
+                .filter(testCase -> includeHidden || !testCase.isHidden())
                 .map(this::toResponse)
                 .toList();
     }

@@ -2,9 +2,11 @@ package intercoach.controller;
 
 import intercoach.dto.TestCaseRequest;
 import intercoach.dto.TestCaseResponse;
+import intercoach.security.UserAccessService;
 import intercoach.service.TestCaseService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,9 +25,14 @@ import java.util.List;
 public class TestCaseController {
 
     private final TestCaseService testCaseService;
+    private final UserAccessService userAccessService;
 
-    public TestCaseController(TestCaseService testCaseService) {
+    public TestCaseController(
+            TestCaseService testCaseService,
+            UserAccessService userAccessService
+    ) {
         this.testCaseService = testCaseService;
+        this.userAccessService = userAccessService;
     }
 
     @PostMapping
@@ -38,7 +45,13 @@ public class TestCaseController {
     }
 
     @GetMapping
-    public List<TestCaseResponse> getTestCasesForProblem(@PathVariable Long problemId) {
-        return testCaseService.getTestCasesForProblem(problemId);
+    public List<TestCaseResponse> getTestCasesForProblem(
+            @PathVariable Long problemId,
+            Authentication authentication
+    ) {
+        return testCaseService.getTestCasesForProblem(
+                problemId,
+                userAccessService.isAdmin(authentication)
+        );
     }
 }

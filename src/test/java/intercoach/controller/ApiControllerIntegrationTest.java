@@ -218,6 +218,12 @@ class ApiControllerIntegrationTest {
                 .andExpect(content().string(containsString("id=\"code-run-form\"")))
                 .andExpect(content().string(containsString("id=\"submit-review\"")))
                 .andExpect(content().string(containsString("id=\"authoring\"")))
+                .andExpect(content().string(containsString(
+                        "id=\"authoring-nav\" class=\"hidden\""
+                )))
+                .andExpect(content().string(containsString(
+                        "id=\"authoring\" class=\"dashboard-grid reveal hidden\""
+                )))
                 .andExpect(content().string(containsString("id=\"problem-author-form\"")))
                 .andExpect(content().string(containsString("id=\"test-case-form\"")))
                 .andExpect(content().string(containsString("id=\"interviews\"")))
@@ -238,6 +244,7 @@ class ApiControllerIntegrationTest {
                 .andExpect(content().string(containsString("data-interview-action=\"abandon\"")))
                 .andExpect(content().string(containsString("loadAdminUsers")))
                 .andExpect(content().string(containsString("handleAdminUserCreate")))
+                .andExpect(content().string(containsString("isAdminSession()")))
                 .andExpect(content().string(containsString("status.runtime?.totalRuns")))
                 .andExpect(content().string(containsString("status.hostPolicy?.isolation")));
     }
@@ -626,14 +633,55 @@ class ApiControllerIntegrationTest {
     }
 
     @Test
-    void problemAuthoringEndpointsAcceptValidBearerToken() throws Exception {
+    void problemAuthoringEndpointsRejectNonAdmins() throws Exception {
         AppUser user = user("coder");
         user.setPasswordHash(passwordEncoder.encode("password123"));
         String token = jwtService.generateToken(user).value();
-        Problem existingProblem = problem(7L, "Two Sum", Difficulty.EASY, "Arrays");
 
         given(appUserRepository.findByUsernameIgnoreCase("coder"))
                 .willReturn(Optional.of(user));
+
+        mockMvc.perform(post("/api/problems")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Two Sum",
+                                  "description": "Find a pair.",
+                                  "difficulty": "EASY"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Access denied."));
+
+        mockMvc.perform(put("/api/problems/7")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Pair Sum",
+                                  "description": "Find a pair.",
+                                  "difficulty": "EASY"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Access denied."));
+
+        mockMvc.perform(delete("/api/problems/7")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Access denied."));
+    }
+
+    @Test
+    void problemAuthoringEndpointsAllowAdmins() throws Exception {
+        AppUser admin = user(1L, "admin", "ADMIN");
+        admin.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(admin).value();
+        Problem existingProblem = problem(7L, "Two Sum", Difficulty.EASY, "Arrays");
+
+        given(appUserRepository.findByUsernameIgnoreCase("admin"))
+                .willReturn(Optional.of(admin));
         given(problemRepository.save(any(Problem.class)))
                 .willAnswer(invocation -> savedProblem(invocation.getArgument(0), 7L));
         given(problemRepository.findById(7L)).willReturn(Optional.of(existingProblem));
@@ -679,17 +727,63 @@ class ApiControllerIntegrationTest {
     }
 
     @Test
-    void testCaseAuthoringEndpointAcceptsValidBearerToken() throws Exception {
+    void testCaseCreationRejectsNonAdminsAndReadsHideEvaluationCases() throws Exception {
         AppUser user = user("coder");
         user.setPasswordHash(passwordEncoder.encode("password123"));
         String token = jwtService.generateToken(user).value();
         Problem problem = problem(1L, "Two Sum", Difficulty.EASY, "Arrays");
+        TestCase visibleCase = testCase(10L, "visible input", "visible output", false);
+        TestCase hiddenCase = testCase(11L, "hidden input", "hidden output", true);
+        visibleCase.setProblem(problem);
+        hiddenCase.setProblem(problem);
 
         given(appUserRepository.findByUsernameIgnoreCase("coder"))
                 .willReturn(Optional.of(user));
+        given(problemRepository.existsById(1L)).willReturn(true);
+        given(testCaseRepository.findByProblemId(1L))
+                .willReturn(List.of(visibleCase, hiddenCase));
+
+        mockMvc.perform(post("/api/problems/1/test-cases")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "input": "nums=[2,7,11,15], target=9",
+                                  "expectedOutput": "[0,1]",
+                                  "hidden": true
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Access denied."));
+
+        mockMvc.perform(get("/api/problems/1/test-cases")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(10))
+                .andExpect(jsonPath("$[0].hidden").value(false))
+                .andExpect(jsonPath("$[?(@.hidden == true)]").isEmpty());
+    }
+
+    @Test
+    void testCaseManagementEndpointsAllowAdmins() throws Exception {
+        AppUser admin = user(1L, "admin", "ADMIN");
+        admin.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(admin).value();
+        Problem problem = problem(1L, "Two Sum", Difficulty.EASY, "Arrays");
+        TestCase testCase = savedTestCase(new TestCase(), 11L);
+        testCase.setProblem(problem);
+        testCase.setInput("nums=[2,7,11,15], target=9");
+        testCase.setExpectedOutput("[0,1]");
+        testCase.setHidden(true);
+
+        given(appUserRepository.findByUsernameIgnoreCase("admin"))
+                .willReturn(Optional.of(admin));
         given(problemRepository.findById(1L)).willReturn(Optional.of(problem));
+        given(problemRepository.existsById(1L)).willReturn(true);
         given(testCaseRepository.save(any(TestCase.class)))
                 .willAnswer(invocation -> savedTestCase(invocation.getArgument(0), 11L));
+        given(testCaseRepository.findByProblemId(1L)).willReturn(List.of(testCase));
 
         mockMvc.perform(post("/api/problems/1/test-cases")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -707,6 +801,12 @@ class ApiControllerIntegrationTest {
                 .andExpect(jsonPath("$.input").value("nums=[2,7,11,15], target=9"))
                 .andExpect(jsonPath("$.expectedOutput").value("[0,1]"))
                 .andExpect(jsonPath("$.hidden").value(true));
+
+        mockMvc.perform(get("/api/problems/1/test-cases")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(11))
+                .andExpect(jsonPath("$[0].hidden").value(true));
     }
 
     @Test

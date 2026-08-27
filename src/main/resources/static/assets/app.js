@@ -66,6 +66,8 @@ const elements = {
     problemList: document.querySelector("#problem-list"),
     problemStatus: document.querySelector("#problem-status"),
     problemDetail: document.querySelector("#problem-detail"),
+    authoringSection: document.querySelector("#authoring"),
+    authoringNav: document.querySelector("#authoring-nav"),
     codeRunForm: document.querySelector("#code-run-form"),
     codeEditor: document.querySelector("#code-editor"),
     runCode: document.querySelector("#run-code"),
@@ -171,6 +173,10 @@ function loadSession() {
     } catch (error) {
         return null;
     }
+}
+
+function isAdminSession() {
+    return state.session?.user?.role?.toUpperCase() === "ADMIN";
 }
 
 function saveSession(session) {
@@ -524,8 +530,8 @@ async function handleReviewSubmission() {
 async function handleProblemSave(event) {
     event.preventDefault();
 
-    if (!state.session) {
-        renderFormStatus(elements.problemAuthorMessage, "Sign in first.", true);
+    if (!isAdminSession()) {
+        renderFormStatus(elements.problemAuthorMessage, "Administrator access required.", true);
         return;
     }
 
@@ -583,8 +589,8 @@ async function handleProblemSave(event) {
 }
 
 function beginEditingSelectedProblem() {
-    if (!state.session) {
-        renderFormStatus(elements.problemAuthorMessage, "Sign in first.", true);
+    if (!isAdminSession()) {
+        renderFormStatus(elements.problemAuthorMessage, "Administrator access required.", true);
         return;
     }
 
@@ -613,8 +619,8 @@ function resetProblemAuthoring(clearStatus = true) {
 }
 
 async function handleProblemDelete() {
-    if (!state.session) {
-        renderFormStatus(elements.problemAuthorMessage, "Sign in first.", true);
+    if (!isAdminSession()) {
+        renderFormStatus(elements.problemAuthorMessage, "Administrator access required.", true);
         return;
     }
 
@@ -668,8 +674,8 @@ async function handleProblemDelete() {
 async function handleTestCaseSave(event) {
     event.preventDefault();
 
-    if (!state.session) {
-        renderFormStatus(elements.testCaseMessage, "Sign in first.", true);
+    if (!isAdminSession()) {
+        renderFormStatus(elements.testCaseMessage, "Administrator access required.", true);
         return;
     }
 
@@ -1359,6 +1365,10 @@ function renderProblemWorkspace() {
 }
 
 function renderAuthoringWorkspace() {
+    const visible = isAdminSession();
+    elements.authoringSection.classList.toggle("hidden", !visible);
+    elements.authoringNav.classList.toggle("hidden", !visible);
+
     renderProblemAuthorForm();
     renderAuthorTestCaseForm();
     renderAuthorTestCases();
@@ -1366,7 +1376,7 @@ function renderAuthoringWorkspace() {
 
 function renderProblemAuthorForm() {
     const isEditing = state.authoringMode === "edit" && state.authoringProblemId != null;
-    const disabled = !state.session || state.savingProblem || state.deletingProblem;
+    const disabled = !isAdminSession() || state.savingProblem || state.deletingProblem;
     const controls = elements.problemAuthorForm.querySelectorAll("input, select, textarea");
 
     elements.problemAuthorMode.textContent = isEditing
@@ -1381,14 +1391,14 @@ function renderProblemAuthorForm() {
         : isEditing
             ? "Save problem"
             : "Create problem";
-    elements.editSelectedProblem.disabled = !state.session
+    elements.editSelectedProblem.disabled = !isAdminSession()
         || !state.selectedProblem
         || state.savingProblem
         || state.deletingProblem;
-    elements.resetProblemAuthor.disabled = !state.session
+    elements.resetProblemAuthor.disabled = !isAdminSession()
         || state.savingProblem
         || state.deletingProblem;
-    elements.deleteProblem.disabled = !state.session
+    elements.deleteProblem.disabled = !isAdminSession()
         || !isEditing
         || state.savingProblem
         || state.deletingProblem;
@@ -1396,7 +1406,7 @@ function renderProblemAuthorForm() {
 }
 
 function renderAuthorTestCaseForm() {
-    const disabled = !state.session || !state.selectedProblem || state.savingTestCase;
+    const disabled = !isAdminSession() || !state.selectedProblem || state.savingTestCase;
     const testCount = state.selectedProblem ? state.testCases.length : 0;
     const controls = elements.testCaseForm.querySelectorAll("input, textarea");
 
@@ -1415,8 +1425,8 @@ function renderAuthorTestCaseForm() {
 function renderAuthorTestCases() {
     elements.authorTestList.innerHTML = "";
 
-    if (!state.session) {
-        renderEmpty(elements.authorTestList, "Sign in to manage test cases.");
+    if (!isAdminSession()) {
+        renderEmpty(elements.authorTestList, "Administrator access required.");
         return;
     }
 

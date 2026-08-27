@@ -48,6 +48,23 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers("/api/auth/**")
                         .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/problems")
+                        .hasRole("ADMIN")
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/problems/*"
+                        )
+                        .hasRole("ADMIN")
+                        .requestMatchers(
+                                HttpMethod.DELETE,
+                                "/api/problems/*"
+                        )
+                        .hasRole("ADMIN")
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/problems/*/test-cases"
+                        )
+                        .hasRole("ADMIN")
                         .anyRequest()
                         .authenticated()
                 )
