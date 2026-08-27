@@ -227,7 +227,8 @@ textarea,
 .account-form,
 .code-run-form,
 .interview-form,
-.authoring-form {
+.authoring-form,
+.admin-user-form {
     display: grid;
     gap: 12px;
 }
@@ -483,6 +484,7 @@ textarea:focus {
 .recommendation-list,
 .assistant-answer,
 .operations-grid,
+.admin-user-list,
 .problem-list,
 .problem-detail,
 .interview-list,
@@ -504,6 +506,7 @@ textarea:focus {
 .breakdown-row,
 .recommendation-row,
 .operation-row,
+.admin-user-row,
 .problem-row,
 .interview-row,
 .test-case-row,
@@ -521,6 +524,7 @@ textarea:focus {
 .breakdown-row:hover,
 .recommendation-row:hover,
 .operation-row:hover,
+.admin-user-row:hover,
 .problem-row:hover,
 .problem-row:focus-visible,
 .interview-row:hover,
@@ -798,6 +802,8 @@ textarea:focus {
 .trend-meta,
 .breakdown-meta,
 .recommendation-meta,
+.admin-user-heading,
+.admin-user-meta,
 .operation-row {
     display: flex;
     align-items: center;
@@ -811,6 +817,24 @@ textarea:focus {
     color: #fff6e8;
     overflow-wrap: anywhere;
     text-align: right;
+}
+
+.admin-user-heading strong {
+    overflow-wrap: anywhere;
+}
+
+.admin-user-heading span {
+    border: 1px solid rgba(127, 168, 153, 0.28);
+    border-radius: 999px;
+    padding: 3px 8px;
+    background: rgba(127, 168, 153, 0.08);
+    color: #d8ece1;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.admin-user-meta {
+    flex-wrap: wrap;
 }
 
 .trend-track,
@@ -963,6 +987,8 @@ textarea:focus {
     .form-actions,
     .run-actions,
     .interview-actions,
+    .admin-user-heading,
+    .admin-user-meta,
     .recommendation-footer,
     .run-summary,
     .review-summary,

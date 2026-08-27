@@ -10,6 +10,8 @@ const state = {
     analytics: null,
     recommendations: [],
     executionStatus: null,
+    adminUsers: [],
+    adminUsersAvailable: false,
     problems: [],
     mockInterviews: [],
     selectedProblemId: null,
@@ -29,7 +31,8 @@ const state = {
     updatingInterview: false,
     savingProblem: false,
     deletingProblem: false,
-    savingTestCase: false
+    savingTestCase: false,
+    creatingAdminUser: false
 };
 
 const elements = {
@@ -114,6 +117,16 @@ const elements = {
     currentPassword: document.querySelector("#current-password"),
     newPassword: document.querySelector("#new-password"),
     passwordMessage: document.querySelector("#password-message"),
+    adminUsersSection: document.querySelector("#admin-users"),
+    adminUsersNav: document.querySelector("#admin-users-nav"),
+    adminUserCount: document.querySelector("#admin-user-count"),
+    adminUserList: document.querySelector("#admin-user-list"),
+    adminUserForm: document.querySelector("#admin-user-form"),
+    adminUsername: document.querySelector("#admin-username"),
+    adminEmail: document.querySelector("#admin-email"),
+    adminPassword: document.querySelector("#admin-password"),
+    createAdminUser: document.querySelector("#create-admin-user"),
+    adminUserMessage: document.querySelector("#admin-user-message"),
     operationsSection: document.querySelector("#operations"),
     operationsNav: document.querySelector("#operations-nav"),
     operationsMode: document.querySelector("#operations-mode"),
@@ -142,6 +155,7 @@ elements.interviewDetail.addEventListener("click", handleInterviewAction);
 elements.assistantForm.addEventListener("submit", handleAssistantQuestion);
 elements.profileForm.addEventListener("submit", handleProfileUpdate);
 elements.passwordForm.addEventListener("submit", handlePasswordChange);
+elements.adminUserForm.addEventListener("submit", handleAdminUserCreate);
 
 setupScrollInteractions();
 renderSession();
@@ -220,6 +234,8 @@ function signOut() {
     state.analytics = null;
     state.recommendations = [];
     state.executionStatus = null;
+    state.adminUsers = [];
+    state.adminUsersAvailable = false;
     state.problems = [];
     state.mockInterviews = [];
     state.selectedProblemId = null;
@@ -240,12 +256,15 @@ function signOut() {
     state.savingProblem = false;
     state.deletingProblem = false;
     state.savingTestCase = false;
+    state.creatingAdminUser = false;
     elements.assistantAnswer.innerHTML = "";
     fillProblemAuthorForm(emptyProblemAuthorFields());
     clearTestCaseForm();
+    clearAdminUserForm();
     clearFormStatus(elements.problemAuthorMessage);
     clearFormStatus(elements.testCaseMessage);
     clearFormStatus(elements.interviewMessage);
+    clearFormStatus(elements.adminUserMessage);
     clearFormStatus(elements.profileMessage);
     clearFormStatus(elements.passwordMessage);
     renderSession();
@@ -268,6 +287,7 @@ async function loadWorkspace() {
             analytics,
             recommendations,
             executionStatus,
+            adminUsers,
             problems,
             mockInterviews
         ] = await Promise.all([
@@ -275,6 +295,7 @@ async function loadWorkspace() {
             api(`/api/users/${userId}/analytics`),
             api(`/api/users/${userId}/recommendations`),
             loadExecutionStatus(),
+            loadAdminUsers(),
             api("/api/problems"),
             api(`/api/users/${userId}/mock-interviews`)
         ]);
@@ -283,6 +304,8 @@ async function loadWorkspace() {
         state.analytics = analytics;
         state.recommendations = recommendations;
         state.executionStatus = executionStatus;
+        state.adminUsersAvailable = Array.isArray(adminUsers);
+        state.adminUsers = state.adminUsersAvailable ? adminUsers : [];
         state.problems = Array.isArray(problems) ? problems : [];
         state.mockInterviews = Array.isArray(mockInterviews) ? mockInterviews : [];
         syncSelectedProblem();
@@ -346,6 +369,18 @@ async function loadSelectedProblemDetails() {
 async function loadExecutionStatus() {
     try {
         return await api("/api/admin/execution/status");
+    } catch (error) {
+        if (error.status === 401 || error.status === 403) {
+            return null;
+        }
+
+        throw error;
+    }
+}
+
+async function loadAdminUsers() {
+    try {
+        return await api("/api/users");
     } catch (error) {
         if (error.status === 401 || error.status === 403) {
             return null;
@@ -919,6 +954,58 @@ async function handlePasswordChange(event) {
     }
 }
 
+async function handleAdminUserCreate(event) {
+    event.preventDefault();
+
+    if (!state.adminUsersAvailable) {
+        renderFormStatus(elements.adminUserMessage, "Admin access required.", true);
+        return;
+    }
+
+    if (state.creatingAdminUser) {
+        return;
+    }
+
+    const username = elements.adminUsername.value.trim();
+    const email = elements.adminEmail.value.trim();
+    const password = elements.adminPassword.value;
+
+    if (!username || !email || password.length < 8) {
+        renderFormStatus(
+            elements.adminUserMessage,
+            "Username, email, and an 8+ character password are required.",
+            true
+        );
+        return;
+    }
+
+    state.creatingAdminUser = true;
+    clearFormStatus(elements.adminUserMessage);
+    renderAdminUsers();
+    setConnection("Creating user");
+
+    try {
+        const user = await api("/api/users", {
+            method: "POST",
+            body: JSON.stringify({
+                username,
+                email,
+                password
+            })
+        });
+        state.adminUsers = mergeAdminUser(user, state.adminUsers);
+        clearAdminUserForm();
+        renderFormStatus(elements.adminUserMessage, "User created.");
+        setConnection("User created");
+    } catch (error) {
+        renderFormStatus(elements.adminUserMessage, error.message, true);
+        setConnection(error.message);
+    } finally {
+        state.creatingAdminUser = false;
+        renderAdminUsers();
+    }
+}
+
 async function api(path, options = {}) {
     const headers = new Headers(options.headers || {});
 
@@ -998,6 +1085,7 @@ function renderWorkspace() {
     renderAuthoringWorkspace();
     renderInterviewWorkspace();
     renderRecommendations(state.recommendations || []);
+    renderAdminUsers();
     renderOperations();
 }
 
@@ -1243,6 +1331,24 @@ function clearTestCaseForm() {
     elements.testCaseInput.value = "";
     elements.testCaseExpected.value = "";
     elements.testCaseHidden.checked = false;
+}
+
+function clearAdminUserForm() {
+    elements.adminUsername.value = "";
+    elements.adminEmail.value = "";
+    elements.adminPassword.value = "";
+}
+
+function mergeAdminUser(user, users) {
+    if (!user) {
+        return users || [];
+    }
+
+    const remainingUsers = (users || []).filter((candidate) => {
+        return String(candidate.id) !== String(user.id);
+    });
+
+    return [user, ...remainingUsers];
 }
 
 function renderProblemWorkspace() {
@@ -1725,6 +1831,62 @@ function renderRecommendations(recommendations) {
     });
 }
 
+function renderAdminUsers() {
+    const visible = state.adminUsersAvailable;
+    const users = state.adminUsers || [];
+    const disabled = !visible || state.creatingAdminUser;
+
+    elements.adminUsersSection.classList.toggle("hidden", !visible);
+    elements.adminUsersNav.classList.toggle("hidden", !visible);
+
+    if (!visible) {
+        elements.adminUserList.innerHTML = "";
+        elements.adminUserCount.textContent = "0 users";
+        elements.createAdminUser.disabled = true;
+        return;
+    }
+
+    elements.adminUserCount.textContent = `${number(users.length)} ${plural(
+            users.length,
+            "user",
+            "users"
+    )}`;
+    elements.adminUsername.disabled = disabled;
+    elements.adminEmail.disabled = disabled;
+    elements.adminPassword.disabled = disabled;
+    elements.createAdminUser.disabled = disabled;
+    elements.createAdminUser.textContent = state.creatingAdminUser
+        ? "Creating..."
+        : "Create user";
+    renderAdminUserList(users);
+}
+
+function renderAdminUserList(users) {
+    elements.adminUserList.innerHTML = "";
+
+    if (!users.length) {
+        renderEmpty(elements.adminUserList, "No users found.");
+        return;
+    }
+
+    users.forEach((user) => {
+        const row = document.createElement("div");
+        row.className = "admin-user-row";
+        row.innerHTML = `
+            <div class="admin-user-heading">
+                <strong>${escapeHtml(user.username || "Unknown user")}</strong>
+                <span>${escapeHtml(user.role || "USER")}</span>
+            </div>
+            <div class="admin-user-meta">
+                <span>${escapeHtml(user.email || "-")}</span>
+                <span>#${escapeHtml(user.id || "-")}</span>
+                <span>${escapeHtml(formatDateTime(user.createdAt))}</span>
+            </div>
+        `;
+        elements.adminUserList.append(row);
+    });
+}
+
 function ensureProblemDraft(problem) {
     if (!problem) {
         return "";
@@ -1961,6 +2123,9 @@ function renderError(message) {
     renderEmpty(elements.interviewList, message, true);
     renderEmpty(elements.interviewDetail, message, true);
     elements.interviewStatus.textContent = "Error";
+    elements.adminUsersSection.classList.add("hidden");
+    elements.adminUsersNav.classList.add("hidden");
+    elements.adminUserList.innerHTML = "";
     renderEmpty(elements.recommendationList, message, true);
 }
 

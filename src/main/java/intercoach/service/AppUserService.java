@@ -243,6 +243,7 @@ public class AppUserService {
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
+                user.getRole(),
                 user.getCreatedAt()
         );
     }

@@ -219,7 +219,9 @@ class ApiControllerIntegrationTest {
                 .andExpect(content().string(containsString("id=\"problem-author-form\"")))
                 .andExpect(content().string(containsString("id=\"test-case-form\"")))
                 .andExpect(content().string(containsString("id=\"interviews\"")))
-                .andExpect(content().string(containsString("id=\"start-interview\"")));
+                .andExpect(content().string(containsString("id=\"start-interview\"")))
+                .andExpect(content().string(containsString("id=\"admin-users\"")))
+                .andExpect(content().string(containsString("id=\"admin-user-form\"")));
 
         mockMvc.perform(get("/assets/app.js"))
                 .andExpect(status().isOk())
@@ -231,7 +233,9 @@ class ApiControllerIntegrationTest {
                 .andExpect(content().string(containsString("/test-cases")))
                 .andExpect(content().string(containsString("/mock-interviews")))
                 .andExpect(content().string(containsString("data-interview-action=\"complete\"")))
-                .andExpect(content().string(containsString("data-interview-action=\"abandon\"")));
+                .andExpect(content().string(containsString("data-interview-action=\"abandon\"")))
+                .andExpect(content().string(containsString("loadAdminUsers")))
+                .andExpect(content().string(containsString("handleAdminUserCreate")));
     }
 
     @Test
@@ -266,6 +270,7 @@ class ApiControllerIntegrationTest {
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.user.username").value("coder"))
                 .andExpect(jsonPath("$.user.email").value("coder@example.com"))
+                .andExpect(jsonPath("$.user.role").value("USER"))
                 .andExpect(jsonPath("$.user.password").doesNotExist());
     }
 
@@ -288,7 +293,8 @@ class ApiControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").isString())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
-                .andExpect(jsonPath("$.user.username").value("coder"));
+                .andExpect(jsonPath("$.user.username").value("coder"))
+                .andExpect(jsonPath("$.user.role").value("USER"));
     }
 
     @Test
@@ -410,6 +416,80 @@ class ApiControllerIntegrationTest {
     }
 
     @Test
+    void userManagementEndpointsRejectNonAdmins() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(user).value();
+
+        given(appUserRepository.findByUsernameIgnoreCase("coder"))
+                .willReturn(Optional.of(user));
+
+        mockMvc.perform(get("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.message").value("Access denied."))
+                .andExpect(jsonPath("$.path").value("/api/users"));
+
+        mockMvc.perform(post("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username": "learner",
+                                  "email": "learner@example.com",
+                                  "password": "password123"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.message").value("Access denied."))
+                .andExpect(jsonPath("$.path").value("/api/users"));
+    }
+
+    @Test
+    void userManagementEndpointsAllowAdmins() throws Exception {
+        AppUser admin = user(1L, "admin", "ADMIN");
+        admin.setPasswordHash(passwordEncoder.encode("password123"));
+        AppUser learner = user(42L, "learner", "USER");
+        String token = jwtService.generateToken(admin).value();
+
+        given(appUserRepository.findByUsernameIgnoreCase("admin"))
+                .willReturn(Optional.of(admin));
+        given(appUserRepository.findAll()).willReturn(List.of(admin, learner));
+        given(appUserRepository.existsByUsernameIgnoreCase("newlearner"))
+                .willReturn(false);
+        given(appUserRepository.existsByEmailIgnoreCase("newlearner@example.com"))
+                .willReturn(false);
+        given(appUserRepository.save(any(AppUser.class)))
+                .willAnswer(invocation -> savedUser(invocation.getArgument(0)));
+
+        mockMvc.perform(get("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].username").value("admin"))
+                .andExpect(jsonPath("$[0].role").value("ADMIN"))
+                .andExpect(jsonPath("$[1].username").value("learner"))
+                .andExpect(jsonPath("$[1].role").value("USER"));
+
+        mockMvc.perform(post("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username": "newlearner",
+                                  "email": "NewLearner@Example.COM",
+                                  "password": "password123"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.username").value("newlearner"))
+                .andExpect(jsonPath("$.email").value("newlearner@example.com"))
+                .andExpect(jsonPath("$.role").value("USER"))
+                .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
+    @Test
     void currentUserEndpointReturnsAuthenticatedProfile() throws Exception {
         AppUser user = user("coder");
         user.setPasswordHash(passwordEncoder.encode("password123"));
@@ -424,6 +504,7 @@ class ApiControllerIntegrationTest {
                 .andExpect(jsonPath("$.id").value(42))
                 .andExpect(jsonPath("$.username").value("coder"))
                 .andExpect(jsonPath("$.email").value("coder@example.com"))
+                .andExpect(jsonPath("$.role").value("USER"))
                 .andExpect(jsonPath("$.password").doesNotExist());
     }
 

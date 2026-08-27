@@ -59,6 +59,7 @@
                 <a href="#recommendations">Practice</a>
                 <a href="#assistant">Assistant</a>
                 <a href="#account">Account</a>
+                <a id="admin-users-nav" class="hidden" href="#admin-users">Users</a>
                 <a id="operations-nav" class="hidden" href="#operations">Operations</a>
             </nav>
         </aside>
@@ -361,6 +362,44 @@
                         <button class="primary-action" type="submit">Update password</button>
                     </form>
                     <div id="password-message" class="form-status"></div>
+                </article>
+            </section>
+
+            <section id="admin-users" class="dashboard-grid reveal hidden" aria-label="User administration">
+                <article class="workspace-card reveal">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Admin</p>
+                            <h3>User directory</h3>
+                        </div>
+                        <span id="admin-user-count" class="pill">0 users</span>
+                    </div>
+                    <div id="admin-user-list" class="admin-user-list"></div>
+                </article>
+
+                <article class="workspace-card reveal">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Admin</p>
+                            <h3>Create user</h3>
+                        </div>
+                    </div>
+                    <form id="admin-user-form" class="admin-user-form">
+                        <label>
+                            Username
+                            <input id="admin-username" name="username" autocomplete="off" required>
+                        </label>
+                        <label>
+                            Email
+                            <input id="admin-email" name="email" type="email" autocomplete="off" required>
+                        </label>
+                        <label>
+                            Temporary password
+                            <input id="admin-password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+                        </label>
+                        <button id="create-admin-user" class="primary-action" type="submit">Create user</button>
+                    </form>
+                    <div id="admin-user-message" class="form-status"></div>
                 </article>
             </section>
 
