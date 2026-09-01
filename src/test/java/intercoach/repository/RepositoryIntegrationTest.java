@@ -114,6 +114,7 @@ class RepositoryIntegrationTest {
                 .contains(user);
         assertThat(user.getCreatedAt()).isNotNull();
         assertThat(user.getRole()).isEqualTo("USER");
+        assertThat(user.isActive()).isTrue();
     }
 
     @Test

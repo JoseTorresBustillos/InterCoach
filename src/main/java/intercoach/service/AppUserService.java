@@ -62,14 +62,7 @@ public class AppUserService {
     }
 
     public UserResponse getUserById(Long userId) {
-        AppUser user = appUserRepository.findById(userId)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "User not found with id: " + userId
-                        )
-                );
-
-        return toResponse(user);
+        return toResponse(findById(userId));
     }
 
     public UserResponse getUserByUsername(String username) {
@@ -81,6 +74,27 @@ public class AppUserService {
                 );
 
         return toResponse(user);
+    }
+
+    public UserResponse updateUserStatus(
+            Long userId,
+            boolean active,
+            String actingUsername
+    ) {
+        AppUser user = findById(userId);
+
+        if (!active && user.getUsername().equalsIgnoreCase(actingUsername)) {
+            throw new IllegalArgumentException(
+                    "You cannot suspend your own account."
+            );
+        }
+
+        if (user.isActive() == active) {
+            return toResponse(user);
+        }
+
+        user.setActive(active);
+        return toResponse(appUserRepository.save(user));
     }
 
     public AuthResponse updateCurrentUserProfile(
@@ -136,6 +150,15 @@ public class AppUserService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 "User not found with username: " + username
+                        )
+                );
+    }
+
+    private AppUser findById(Long userId) {
+        return appUserRepository.findById(userId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "User not found with id: " + userId
                         )
                 );
     }
@@ -244,6 +267,7 @@ public class AppUserService {
                 user.getUsername(),
                 user.getEmail(),
                 user.getRole(),
+                user.isActive(),
                 user.getCreatedAt()
         );
     }

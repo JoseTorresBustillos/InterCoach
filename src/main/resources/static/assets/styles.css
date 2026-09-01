@@ -813,6 +813,29 @@ textarea:focus {
     font-size: 0.86rem;
 }
 
+.admin-user-badges,
+.admin-user-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-user-actions {
+    justify-content: flex-end;
+}
+
+.account-status {
+    color: var(--muted);
+}
+
+.account-status.active {
+    color: #a9d5a0;
+}
+
+.account-status.inactive {
+    color: #e0a18c;
+}
+
 .operation-row strong {
     color: #fff6e8;
     overflow-wrap: anywhere;

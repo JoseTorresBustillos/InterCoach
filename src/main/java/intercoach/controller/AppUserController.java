@@ -5,6 +5,7 @@ import intercoach.dto.PasswordChangeRequest;
 import intercoach.dto.UserProfileUpdateRequest;
 import intercoach.dto.UserRequest;
 import intercoach.dto.UserResponse;
+import intercoach.dto.UserStatusUpdateRequest;
 import intercoach.security.UserAccessService;
 import intercoach.service.AppUserService;
 import jakarta.validation.Valid;
@@ -90,5 +91,20 @@ public class AppUserController {
         userAccessService.assertCanAccessUser(userId, authentication);
 
         return appUserService.getUserById(userId);
+    }
+
+    @PatchMapping("/{userId}/status")
+    public UserResponse updateUserStatus(
+            @PathVariable Long userId,
+            @Valid @RequestBody UserStatusUpdateRequest request,
+            Authentication authentication
+    ) {
+        userAccessService.assertAdmin(authentication);
+
+        return appUserService.updateUserStatus(
+                userId,
+                request.active(),
+                authentication.getName()
+        );
     }
 }

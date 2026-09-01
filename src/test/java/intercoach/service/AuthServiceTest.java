@@ -76,6 +76,7 @@ class AuthServiceTest {
         assertThat(response.token()).isEqualTo("signed.jwt.token");
         assertThat(response.tokenType()).isEqualTo("Bearer");
         assertThat(response.user().username()).isEqualTo("coder");
+        assertThat(response.user().active()).isTrue();
     }
 
     @Test
@@ -122,6 +123,22 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(AuthenticationFailedException.class)
                 .hasMessage("Invalid username/email or password.");
+    }
+
+    @Test
+    void loginRejectsInactiveAccountAfterPasswordVerification() {
+        LoginRequest request = loginRequest("coder");
+        AppUser user = existingUser();
+        user.setActive(false);
+
+        given(appUserRepository.findByUsernameIgnoreCase("coder"))
+                .willReturn(Optional.of(user));
+        given(passwordEncoder.matches("password123", "hashed-password"))
+                .willReturn(true);
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(AuthenticationFailedException.class)
+                .hasMessage("Account is inactive.");
     }
 
     private RegisterRequest registerRequest() {

@@ -27,6 +27,7 @@ public class InterCoachUserDetailsService implements UserDetailsService {
         return User.withUsername(user.getUsername())
                 .password(user.getPasswordHash())
                 .roles(user.getRole())
+                .disabled(!user.isActive())
                 .build();
     }
 }

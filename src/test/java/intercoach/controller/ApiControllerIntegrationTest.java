@@ -244,6 +244,8 @@ class ApiControllerIntegrationTest {
                 .andExpect(content().string(containsString("data-interview-action=\"abandon\"")))
                 .andExpect(content().string(containsString("loadAdminUsers")))
                 .andExpect(content().string(containsString("handleAdminUserCreate")))
+                .andExpect(content().string(containsString("handleAdminUserStatusChange")))
+                .andExpect(content().string(containsString("data-user-status-id")))
                 .andExpect(content().string(containsString("isAdminSession()")))
                 .andExpect(content().string(containsString("status.runtime?.totalRuns")))
                 .andExpect(content().string(containsString("status.hostPolicy?.isolation")));
@@ -466,6 +468,15 @@ class ApiControllerIntegrationTest {
                 .andExpect(jsonPath("$.status").value(403))
                 .andExpect(jsonPath("$.message").value("Access denied."))
                 .andExpect(jsonPath("$.path").value("/api/users"));
+
+        mockMvc.perform(patch("/api/users/99/status")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"active": false}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Access denied."));
     }
 
     @Test
@@ -478,6 +489,7 @@ class ApiControllerIntegrationTest {
         given(appUserRepository.findByUsernameIgnoreCase("admin"))
                 .willReturn(Optional.of(admin));
         given(appUserRepository.findAll()).willReturn(List.of(admin, learner));
+        given(appUserRepository.findById(42L)).willReturn(Optional.of(learner));
         given(appUserRepository.existsByUsernameIgnoreCase("newlearner"))
                 .willReturn(false);
         given(appUserRepository.existsByEmailIgnoreCase("newlearner@example.com"))
@@ -490,8 +502,10 @@ class ApiControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].username").value("admin"))
                 .andExpect(jsonPath("$[0].role").value("ADMIN"))
+                .andExpect(jsonPath("$[0].active").value(true))
                 .andExpect(jsonPath("$[1].username").value("learner"))
-                .andExpect(jsonPath("$[1].role").value("USER"));
+                .andExpect(jsonPath("$[1].role").value("USER"))
+                .andExpect(jsonPath("$[1].active").value(true));
 
         mockMvc.perform(post("/api/users")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -507,7 +521,66 @@ class ApiControllerIntegrationTest {
                 .andExpect(jsonPath("$.username").value("newlearner"))
                 .andExpect(jsonPath("$.email").value("newlearner@example.com"))
                 .andExpect(jsonPath("$.role").value("USER"))
+                .andExpect(jsonPath("$.active").value(true))
                 .andExpect(jsonPath("$.password").doesNotExist());
+
+        mockMvc.perform(patch("/api/users/42/status")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"active": false}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(42))
+                .andExpect(jsonPath("$.active").value(false));
+
+        mockMvc.perform(patch("/api/users/42/status")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"active": true}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(42))
+                .andExpect(jsonPath("$.active").value(true));
+    }
+
+    @Test
+    void adminCannotSuspendCurrentAccount() throws Exception {
+        AppUser admin = user(1L, "admin", "ADMIN");
+        admin.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(admin).value();
+
+        given(appUserRepository.findByUsernameIgnoreCase("admin"))
+                .willReturn(Optional.of(admin));
+        given(appUserRepository.findById(1L)).willReturn(Optional.of(admin));
+
+        mockMvc.perform(patch("/api/users/1/status")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"active": false}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("You cannot suspend your own account."));
+    }
+
+    @Test
+    void inactiveAccountBearerTokenIsRejectedImmediately() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(user).value();
+        user.setActive(false);
+
+        given(appUserRepository.findByUsernameIgnoreCase("coder"))
+                .willReturn(Optional.of(user));
+
+        mockMvc.perform(get("/api/users/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message")
+                        .value("Invalid or expired token."));
     }
 
     @Test
@@ -526,6 +599,7 @@ class ApiControllerIntegrationTest {
                 .andExpect(jsonPath("$.username").value("coder"))
                 .andExpect(jsonPath("$.email").value("coder@example.com"))
                 .andExpect(jsonPath("$.role").value("USER"))
+                .andExpect(jsonPath("$.active").value(true))
                 .andExpect(jsonPath("$.password").doesNotExist());
     }
 

@@ -32,7 +32,8 @@ const state = {
     savingProblem: false,
     deletingProblem: false,
     savingTestCase: false,
-    creatingAdminUser: false
+    creatingAdminUser: false,
+    updatingAdminUserId: null
 };
 
 const elements = {
@@ -158,6 +159,7 @@ elements.assistantForm.addEventListener("submit", handleAssistantQuestion);
 elements.profileForm.addEventListener("submit", handleProfileUpdate);
 elements.passwordForm.addEventListener("submit", handlePasswordChange);
 elements.adminUserForm.addEventListener("submit", handleAdminUserCreate);
+elements.adminUserList.addEventListener("click", handleAdminUserStatusChange);
 
 setupScrollInteractions();
 renderSession();
@@ -263,6 +265,7 @@ function signOut() {
     state.deletingProblem = false;
     state.savingTestCase = false;
     state.creatingAdminUser = false;
+    state.updatingAdminUserId = null;
     elements.assistantAnswer.innerHTML = "";
     fillProblemAuthorForm(emptyProblemAuthorFields());
     clearTestCaseForm();
@@ -1008,6 +1011,56 @@ async function handleAdminUserCreate(event) {
         setConnection(error.message);
     } finally {
         state.creatingAdminUser = false;
+        renderAdminUsers();
+    }
+}
+
+async function handleAdminUserStatusChange(event) {
+    const button = event.target.closest("[data-user-status-id]");
+
+    if (!button || !state.adminUsersAvailable || state.updatingAdminUserId != null) {
+        return;
+    }
+
+    const userId = button.dataset.userStatusId;
+    const active = button.dataset.userNextActive === "true";
+    const user = state.adminUsers.find((candidate) => {
+        return String(candidate.id) === String(userId);
+    });
+
+    if (!user) {
+        return;
+    }
+
+    if (!active && !window.confirm(`Suspend ${user.username}? Existing sessions will be blocked.`)) {
+        return;
+    }
+
+    state.updatingAdminUserId = userId;
+    clearFormStatus(elements.adminUserMessage);
+    renderAdminUsers();
+    setConnection(active ? "Activating user" : "Suspending user");
+
+    try {
+        const updatedUser = await api(`/api/users/${userId}/status`, {
+            method: "PATCH",
+            body: JSON.stringify({active})
+        });
+        state.adminUsers = state.adminUsers.map((candidate) => {
+            return String(candidate.id) === String(updatedUser.id)
+                ? updatedUser
+                : candidate;
+        });
+        renderFormStatus(
+            elements.adminUserMessage,
+            active ? "User activated." : "User suspended."
+        );
+        setConnection(active ? "User activated" : "User suspended");
+    } catch (error) {
+        renderFormStatus(elements.adminUserMessage, error.message, true);
+        setConnection(error.message);
+    } finally {
+        state.updatingAdminUserId = null;
         renderAdminUsers();
     }
 }
@@ -1844,7 +1897,9 @@ function renderRecommendations(recommendations) {
 function renderAdminUsers() {
     const visible = state.adminUsersAvailable;
     const users = state.adminUsers || [];
-    const disabled = !visible || state.creatingAdminUser;
+    const disabled = !visible
+        || state.creatingAdminUser
+        || state.updatingAdminUserId != null;
 
     elements.adminUsersSection.classList.toggle("hidden", !visible);
     elements.adminUsersNav.classList.toggle("hidden", !visible);
@@ -1881,16 +1936,33 @@ function renderAdminUserList(users) {
 
     users.forEach((user) => {
         const row = document.createElement("div");
+        const active = user.active !== false;
+        const isCurrentUser = String(user.id) === String(state.session?.user?.id);
+        const isUpdating = String(user.id) === String(state.updatingAdminUserId);
+        const actionDisabled = state.updatingAdminUserId != null
+            || (active && isCurrentUser);
         row.className = "admin-user-row";
         row.innerHTML = `
             <div class="admin-user-heading">
                 <strong>${escapeHtml(user.username || "Unknown user")}</strong>
-                <span>${escapeHtml(user.role || "USER")}</span>
+                <div class="admin-user-badges">
+                    <span>${escapeHtml(user.role || "USER")}</span>
+                    <span class="account-status ${active ? "active" : "inactive"}">${active ? "Active" : "Suspended"}</span>
+                </div>
             </div>
             <div class="admin-user-meta">
                 <span>${escapeHtml(user.email || "-")}</span>
                 <span>#${escapeHtml(user.id || "-")}</span>
                 <span>${escapeHtml(formatDateTime(user.createdAt))}</span>
+            </div>
+            <div class="admin-user-actions">
+                <button
+                    class="inline-action ${active ? "danger-action" : ""}"
+                    type="button"
+                    data-user-status-id="${escapeHtml(user.id)}"
+                    data-user-next-active="${!active}"
+                    ${actionDisabled ? "disabled" : ""}
+                >${isUpdating ? "Updating..." : active ? "Suspend" : "Activate"}</button>
             </div>
         `;
         elements.adminUserList.append(row);

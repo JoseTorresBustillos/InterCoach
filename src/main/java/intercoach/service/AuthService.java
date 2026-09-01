@@ -72,6 +72,10 @@ public class AuthService {
             );
         }
 
+        if (!user.isActive()) {
+            throw new AuthenticationFailedException("Account is inactive.");
+        }
+
         return buildAuthResponse(user);
     }
 
@@ -87,6 +91,7 @@ public class AuthService {
                         user.getUsername(),
                         user.getEmail(),
                         user.getRole(),
+                        user.isActive(),
                         user.getCreatedAt()
                 )
         );

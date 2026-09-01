@@ -3,6 +3,7 @@ package intercoach.service;
 import intercoach.dto.AuthResponse;
 import intercoach.dto.PasswordChangeRequest;
 import intercoach.dto.UserProfileUpdateRequest;
+import intercoach.dto.UserResponse;
 import intercoach.exception.AuthenticationFailedException;
 import intercoach.exception.DuplicateResourceException;
 import intercoach.model.AppUser;
@@ -168,6 +169,34 @@ class AppUserServiceTest {
         )
                 .isInstanceOf(AuthenticationFailedException.class)
                 .hasMessage("Current password is incorrect.");
+
+        then(appUserRepository).should(never()).save(user);
+    }
+
+    @Test
+    void updateUserStatusSuspendsAnotherUser() {
+        AppUser user = existingUser();
+        given(appUserRepository.findById(42L)).willReturn(Optional.of(user));
+        given(appUserRepository.save(user)).willReturn(user);
+
+        UserResponse response =
+                appUserService.updateUserStatus(42L, false, "admin");
+
+        assertThat(response.active()).isFalse();
+        assertThat(user.isActive()).isFalse();
+        then(appUserRepository).should().save(user);
+    }
+
+    @Test
+    void updateUserStatusRejectsSelfSuspension() {
+        AppUser user = existingUser();
+        given(appUserRepository.findById(42L)).willReturn(Optional.of(user));
+
+        assertThatThrownBy(() ->
+                appUserService.updateUserStatus(42L, false, "CODER")
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("You cannot suspend your own account.");
 
         then(appUserRepository).should(never()).save(user);
     }
