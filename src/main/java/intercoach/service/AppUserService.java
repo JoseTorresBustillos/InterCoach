@@ -14,8 +14,10 @@ import intercoach.security.JwtService;
 import intercoach.security.JwtToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Locale;
 
 @Service
 public class AppUserService {
@@ -23,6 +25,8 @@ public class AppUserService {
     private static final int USERNAME_MIN_LENGTH = 3;
     private static final int USERNAME_MAX_LENGTH = 50;
     private static final int EMAIL_MAX_LENGTH = 255;
+    private static final String ADMIN_ROLE = "ADMIN";
+    private static final String USER_ROLE = "USER";
 
     private final AppUserRepository appUserRepository;
     private final PasswordEncoder passwordEncoder;
@@ -76,6 +80,7 @@ public class AppUserService {
         return toResponse(user);
     }
 
+    @Transactional
     public UserResponse updateUserStatus(
             Long userId,
             boolean active,
@@ -93,7 +98,30 @@ public class AppUserService {
             return toResponse(user);
         }
 
+        if (!active && ADMIN_ROLE.equalsIgnoreCase(user.getRole())) {
+            assertAnotherActiveAdminRemains();
+        }
+
         user.setActive(active);
+        return toResponse(appUserRepository.save(user));
+    }
+
+    @Transactional
+    public UserResponse updateUserRole(Long userId, String requestedRole) {
+        AppUser user = findById(userId);
+        String role = normalizeRole(requestedRole);
+
+        if (user.getRole().equalsIgnoreCase(role)) {
+            return toResponse(user);
+        }
+
+        if (user.isActive()
+                && ADMIN_ROLE.equalsIgnoreCase(user.getRole())
+                && USER_ROLE.equals(role)) {
+            assertAnotherActiveAdminRemains();
+        }
+
+        user.setRole(role);
         return toResponse(appUserRepository.save(user));
     }
 
@@ -173,6 +201,28 @@ public class AppUserService {
         if (appUserRepository.existsByEmailIgnoreCase(email)) {
             throw new DuplicateResourceException("Email is already in use.");
         }
+    }
+
+    private void assertAnotherActiveAdminRemains() {
+        if (appUserRepository
+                .findAllByRoleIgnoreCaseAndActiveTrue(ADMIN_ROLE)
+                .size() <= 1) {
+            throw new IllegalStateException(
+                    "At least one active administrator is required."
+            );
+        }
+    }
+
+    private String normalizeRole(String role) {
+        String normalized = role == null
+                ? ""
+                : role.trim().toUpperCase(Locale.ROOT);
+
+        if (!ADMIN_ROLE.equals(normalized) && !USER_ROLE.equals(normalized)) {
+            throw new IllegalArgumentException("Role must be USER or ADMIN.");
+        }
+
+        return normalized;
     }
 
     private String requiredUsername(String value) {

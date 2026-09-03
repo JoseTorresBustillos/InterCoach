@@ -118,6 +118,23 @@ class RepositoryIntegrationTest {
     }
 
     @Test
+    void appUserRepositoryLocksOnlyActiveAdministrators() {
+        AppUser activeAdmin = user("admin", "admin@example.com");
+        activeAdmin.setRole("ADMIN");
+        AppUser inactiveAdmin = user("former-admin", "former@example.com");
+        inactiveAdmin.setRole("ADMIN");
+        inactiveAdmin.setActive(false);
+        AppUser learner = user("learner", "learner@example.com");
+        appUserRepository.saveAllAndFlush(
+                List.of(activeAdmin, inactiveAdmin, learner)
+        );
+
+        assertThat(appUserRepository
+                .findAllByRoleIgnoreCaseAndActiveTrue("admin"))
+                .containsExactly(activeAdmin);
+    }
+
+    @Test
     void problemAndTestCaseRepositoriesFindRecordsByDifficultyAndProblem() {
         Problem easyProblem = problem("Two Sum", Difficulty.EASY, "Arrays");
         Problem hardProblem = problem("Median Stream", Difficulty.HARD, "Heaps");

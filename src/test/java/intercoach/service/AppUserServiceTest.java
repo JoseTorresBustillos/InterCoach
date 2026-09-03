@@ -20,6 +20,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -199,6 +200,69 @@ class AppUserServiceTest {
                 .hasMessage("You cannot suspend your own account.");
 
         then(appUserRepository).should(never()).save(user);
+    }
+
+    @Test
+    void updateUserStatusProtectsLastActiveAdministrator() {
+        AppUser admin = existingUser();
+        admin.setRole("ADMIN");
+        given(appUserRepository.findById(42L)).willReturn(Optional.of(admin));
+        given(appUserRepository.findAllByRoleIgnoreCaseAndActiveTrue("ADMIN"))
+                .willReturn(List.of(admin));
+
+        assertThatThrownBy(() ->
+                appUserService.updateUserStatus(42L, false, "other-admin")
+        )
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("At least one active administrator is required.");
+
+        then(appUserRepository).should(never()).save(admin);
+    }
+
+    @Test
+    void updateUserRolePromotesUser() {
+        AppUser user = existingUser();
+        given(appUserRepository.findById(42L)).willReturn(Optional.of(user));
+        given(appUserRepository.save(user)).willReturn(user);
+
+        UserResponse response = appUserService.updateUserRole(42L, " admin ");
+
+        assertThat(response.role()).isEqualTo("ADMIN");
+        then(appUserRepository).should().save(user);
+    }
+
+    @Test
+    void updateUserRoleDemotesAdministratorWhenAnotherRemains() {
+        AppUser admin = existingUser();
+        admin.setRole("ADMIN");
+        AppUser otherAdmin = existingUser();
+        otherAdmin.setUsername("other-admin");
+        given(appUserRepository.findById(42L)).willReturn(Optional.of(admin));
+        given(appUserRepository.findAllByRoleIgnoreCaseAndActiveTrue("ADMIN"))
+                .willReturn(List.of(admin, otherAdmin));
+        given(appUserRepository.save(admin)).willReturn(admin);
+
+        UserResponse response = appUserService.updateUserRole(42L, "USER");
+
+        assertThat(response.role()).isEqualTo("USER");
+        then(appUserRepository).should().save(admin);
+    }
+
+    @Test
+    void updateUserRoleProtectsLastActiveAdministrator() {
+        AppUser admin = existingUser();
+        admin.setRole("ADMIN");
+        given(appUserRepository.findById(42L)).willReturn(Optional.of(admin));
+        given(appUserRepository.findAllByRoleIgnoreCaseAndActiveTrue("ADMIN"))
+                .willReturn(List.of(admin));
+
+        assertThatThrownBy(() ->
+                appUserService.updateUserRole(42L, "USER")
+        )
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("At least one active administrator is required.");
+
+        then(appUserRepository).should(never()).save(admin);
     }
 
     private UserProfileUpdateRequest profileRequest(

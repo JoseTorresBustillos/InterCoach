@@ -245,7 +245,9 @@ class ApiControllerIntegrationTest {
                 .andExpect(content().string(containsString("loadAdminUsers")))
                 .andExpect(content().string(containsString("handleAdminUserCreate")))
                 .andExpect(content().string(containsString("handleAdminUserStatusChange")))
+                .andExpect(content().string(containsString("handleAdminUserRoleChange")))
                 .andExpect(content().string(containsString("data-user-status-id")))
+                .andExpect(content().string(containsString("data-user-role-id")))
                 .andExpect(content().string(containsString("isAdminSession()")))
                 .andExpect(content().string(containsString("status.runtime?.totalRuns")))
                 .andExpect(content().string(containsString("status.hostPolicy?.isolation")));
@@ -477,6 +479,15 @@ class ApiControllerIntegrationTest {
                                 """))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value("Access denied."));
+
+        mockMvc.perform(patch("/api/users/99/role")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"role": "ADMIN"}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Access denied."));
     }
 
     @Test
@@ -543,6 +554,55 @@ class ApiControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(42))
                 .andExpect(jsonPath("$.active").value(true));
+
+        mockMvc.perform(patch("/api/users/42/role")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"role": "ADMIN"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(42))
+                .andExpect(jsonPath("$.role").value("ADMIN"));
+    }
+
+    @Test
+    void lastActiveAdministratorCannotBeDemoted() throws Exception {
+        AppUser admin = user(1L, "admin", "ADMIN");
+        admin.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(admin).value();
+
+        given(appUserRepository.findByUsernameIgnoreCase("admin"))
+                .willReturn(Optional.of(admin));
+        given(appUserRepository.findById(1L)).willReturn(Optional.of(admin));
+        given(appUserRepository.findAllByRoleIgnoreCaseAndActiveTrue("ADMIN"))
+                .willReturn(List.of(admin));
+
+        mockMvc.perform(patch("/api/users/1/role")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"role": "USER"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("At least one active administrator is required."));
+    }
+
+    @Test
+    void roleChangesApplyToExistingBearerTokens() throws Exception {
+        AppUser admin = user(1L, "admin", "ADMIN");
+        admin.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(admin).value();
+        admin.setRole("USER");
+
+        given(appUserRepository.findByUsernameIgnoreCase("admin"))
+                .willReturn(Optional.of(admin));
+
+        mockMvc.perform(get("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Access denied."));
     }
 
     @Test

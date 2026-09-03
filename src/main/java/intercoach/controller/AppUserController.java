@@ -5,6 +5,7 @@ import intercoach.dto.PasswordChangeRequest;
 import intercoach.dto.UserProfileUpdateRequest;
 import intercoach.dto.UserRequest;
 import intercoach.dto.UserResponse;
+import intercoach.dto.UserRoleUpdateRequest;
 import intercoach.dto.UserStatusUpdateRequest;
 import intercoach.security.UserAccessService;
 import intercoach.service.AppUserService;
@@ -106,5 +107,15 @@ public class AppUserController {
                 request.active(),
                 authentication.getName()
         );
+    }
+
+    @PatchMapping("/{userId}/role")
+    public UserResponse updateUserRole(
+            @PathVariable Long userId,
+            @Valid @RequestBody UserRoleUpdateRequest request,
+            Authentication authentication
+    ) {
+        userAccessService.assertAdmin(authentication);
+        return appUserService.updateUserRole(userId, request.role());
     }
 }

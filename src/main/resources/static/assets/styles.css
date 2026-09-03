@@ -822,6 +822,11 @@ textarea:focus {
 
 .admin-user-actions {
     justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.admin-role-select {
+    min-width: 100px;
 }
 
 .account-status {

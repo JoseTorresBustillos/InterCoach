@@ -160,6 +160,7 @@ elements.profileForm.addEventListener("submit", handleProfileUpdate);
 elements.passwordForm.addEventListener("submit", handlePasswordChange);
 elements.adminUserForm.addEventListener("submit", handleAdminUserCreate);
 elements.adminUserList.addEventListener("click", handleAdminUserStatusChange);
+elements.adminUserList.addEventListener("click", handleAdminUserRoleChange);
 
 setupScrollInteractions();
 renderSession();
@@ -1046,11 +1047,7 @@ async function handleAdminUserStatusChange(event) {
             method: "PATCH",
             body: JSON.stringify({active})
         });
-        state.adminUsers = state.adminUsers.map((candidate) => {
-            return String(candidate.id) === String(updatedUser.id)
-                ? updatedUser
-                : candidate;
-        });
+        replaceAdminUser(updatedUser);
         renderFormStatus(
             elements.adminUserMessage,
             active ? "User activated." : "User suspended."
@@ -1062,6 +1059,69 @@ async function handleAdminUserStatusChange(event) {
     } finally {
         state.updatingAdminUserId = null;
         renderAdminUsers();
+    }
+}
+
+async function handleAdminUserRoleChange(event) {
+    const button = event.target.closest("[data-user-role-id]");
+
+    if (!button || !state.adminUsersAvailable || state.updatingAdminUserId != null) {
+        return;
+    }
+
+    const userId = button.dataset.userRoleId;
+    const row = button.closest(".admin-user-row");
+    const role = row?.querySelector("[data-user-role-select]")?.value;
+    const user = state.adminUsers.find((candidate) => {
+        return String(candidate.id) === String(userId);
+    });
+
+    if (!user || !role || role === user.role) {
+        return;
+    }
+
+    const isCurrentUser = String(user.id) === String(state.session?.user?.id);
+
+    if (isCurrentUser
+            && role === "USER"
+            && !window.confirm("Remove your own administrator access?")) {
+        renderAdminUsers();
+        return;
+    }
+
+    state.updatingAdminUserId = userId;
+    clearFormStatus(elements.adminUserMessage);
+    renderAdminUsers();
+    setConnection("Updating role");
+
+    try {
+        const updatedUser = await api(`/api/users/${userId}/role`, {
+            method: "PATCH",
+            body: JSON.stringify({role})
+        });
+        replaceAdminUser(updatedUser);
+
+        if (isCurrentUser) {
+            saveSession({
+                token: state.session.token,
+                user: updatedUser
+            });
+
+            if (updatedUser.role !== "ADMIN") {
+                state.adminUsersAvailable = false;
+                state.adminUsers = [];
+                state.executionStatus = null;
+            }
+        }
+
+        renderFormStatus(elements.adminUserMessage, "User role updated.");
+        setConnection("User role updated");
+    } catch (error) {
+        renderFormStatus(elements.adminUserMessage, error.message, true);
+        setConnection(error.message);
+    } finally {
+        state.updatingAdminUserId = null;
+        renderWorkspace();
     }
 }
 
@@ -1408,6 +1468,12 @@ function mergeAdminUser(user, users) {
     });
 
     return [user, ...remainingUsers];
+}
+
+function replaceAdminUser(user) {
+    state.adminUsers = state.adminUsers.map((candidate) => {
+        return String(candidate.id) === String(user.id) ? user : candidate;
+    });
 }
 
 function renderProblemWorkspace() {
@@ -1895,7 +1961,7 @@ function renderRecommendations(recommendations) {
 }
 
 function renderAdminUsers() {
-    const visible = state.adminUsersAvailable;
+    const visible = state.adminUsersAvailable && isAdminSession();
     const users = state.adminUsers || [];
     const disabled = !visible
         || state.creatingAdminUser
@@ -1956,6 +2022,21 @@ function renderAdminUserList(users) {
                 <span>${escapeHtml(formatDateTime(user.createdAt))}</span>
             </div>
             <div class="admin-user-actions">
+                <select
+                    class="admin-role-select"
+                    data-user-role-select
+                    aria-label="Role for ${escapeHtml(user.username || "user")}"
+                    ${state.updatingAdminUserId != null ? "disabled" : ""}
+                >
+                    <option value="USER" ${user.role === "USER" ? "selected" : ""}>User</option>
+                    <option value="ADMIN" ${user.role === "ADMIN" ? "selected" : ""}>Admin</option>
+                </select>
+                <button
+                    class="inline-action"
+                    type="button"
+                    data-user-role-id="${escapeHtml(user.id)}"
+                    ${state.updatingAdminUserId != null ? "disabled" : ""}
+                >${isUpdating ? "Updating..." : "Save role"}</button>
                 <button
                     class="inline-action ${active ? "danger-action" : ""}"
                     type="button"
