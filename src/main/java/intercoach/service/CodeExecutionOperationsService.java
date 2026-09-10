@@ -12,13 +12,16 @@ public class CodeExecutionOperationsService {
     private static final String SUPPORTED_LANGUAGE = "Java";
 
     private final CodeExecutionProperties properties;
+    private final CodeExecutionHostPreflight hostPreflight;
     private final CodeExecutionRunMonitor runMonitor;
 
     public CodeExecutionOperationsService(
             CodeExecutionProperties properties,
+            CodeExecutionHostPreflight hostPreflight,
             CodeExecutionRunMonitor runMonitor
     ) {
         this.properties = properties;
+        this.hostPreflight = hostPreflight;
         this.runMonitor = runMonitor;
     }
 
@@ -36,6 +39,7 @@ public class CodeExecutionOperationsService {
                 true,
                 true,
                 hostPolicy(),
+                hostPreflight.snapshot(),
                 runMonitor.snapshot(),
                 dockerSettings()
         );

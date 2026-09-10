@@ -2240,6 +2240,16 @@ function renderOperations() {
         operationRow("Local execution", status.hostPolicy?.localExecutionEnabled ? "Enabled" : "Disabled"),
         operationRow("OS isolation", status.hostPolicy?.osLevelIsolation ? "Enabled" : "Not enabled"),
         operationRow("Workspace policy", status.hostPolicy?.workspacePolicy),
+        operationRow("Host ready", status.preflight?.hostReady ? "Ready" : "Not ready"),
+        operationRow("Preflight checked", status.preflight?.checked ? "Yes" : "No"),
+        operationRow("Isolation required", status.preflight?.osIsolationRequired ? "Yes" : "No"),
+        operationRow("Docker available", status.preflight?.dockerAvailable ? "Yes" : "No"),
+        operationRow("Runner image ready", status.preflight?.imageReady ? "Yes" : "No"),
+        operationRow("Image pre-pull", status.preflight?.imagePrePullEnabled ? "Enabled" : "Disabled"),
+        operationRow("Preflight result", status.preflight?.message),
+        operationRow("Preflight time", status.preflight?.checkedAt
+            ? formatDateTime(status.preflight.checkedAt)
+            : "Never"),
         operationRow("Runs", number(status.runtime?.totalRuns)),
         operationRow("Successful runs", number(status.runtime?.successfulRuns)),
         operationRow("Failed runs", number(status.runtime?.failedRuns)),

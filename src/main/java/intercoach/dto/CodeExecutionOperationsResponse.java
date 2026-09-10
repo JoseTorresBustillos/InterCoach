@@ -13,6 +13,7 @@ public record CodeExecutionOperationsResponse(
         boolean temporaryWorkspacePerRun,
         boolean childEnvironmentSanitized,
         CodeExecutionHostPolicyResponse hostPolicy,
+        CodeExecutionPreflightResponse preflight,
         CodeExecutionRuntimeStatsResponse runtime,
         CodeExecutionDockerSettingsResponse docker
 ) {

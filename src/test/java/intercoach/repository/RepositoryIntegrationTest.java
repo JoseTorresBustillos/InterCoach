@@ -9,6 +9,7 @@ import intercoach.model.Submission;
 import intercoach.model.SubmissionStatus;
 import intercoach.model.TestCase;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
@@ -21,6 +22,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
@@ -45,8 +47,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ContextConfiguration(classes = RepositoryIntegrationTest.JpaTestApplication.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-@Testcontainers(disabledWithoutDocker = true)
+@Testcontainers
+@EnabledIf("dockerAvailableOrRequired")
 class RepositoryIntegrationTest {
+
+    private static final String REQUIRE_DOCKER_PROPERTY =
+            "intercoach.tests.require-docker";
 
     private static final DockerImageName PGVECTOR_IMAGE =
             DockerImageName.parse("pgvector/pgvector:pg16")
@@ -71,6 +77,11 @@ class RepositoryIntegrationTest {
 
     @Autowired
     private TestCaseRepository testCaseRepository;
+
+    static boolean dockerAvailableOrRequired() {
+        return Boolean.getBoolean(REQUIRE_DOCKER_PROPERTY)
+                || DockerClientFactory.instance().isDockerAvailable();
+    }
 
     @DynamicPropertySource
     static void configurePostgres(DynamicPropertyRegistry registry) {

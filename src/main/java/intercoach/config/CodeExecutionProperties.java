@@ -18,6 +18,8 @@ public class CodeExecutionProperties {
 
     private ExecutionMode mode = ExecutionMode.LOCAL;
 
+    private boolean requireOsIsolation;
+
     @Min(1)
     private int compileTimeoutSeconds = 5;
 
@@ -39,6 +41,11 @@ public class CodeExecutionProperties {
     @NotBlank
     private String dockerImage = "eclipse-temurin:21-jdk";
 
+    private boolean dockerPrePull = true;
+
+    @Min(1)
+    private int dockerPreflightTimeoutSeconds = 120;
+
     @Min(1)
     private int dockerCpuCount = 1;
 
@@ -57,6 +64,14 @@ public class CodeExecutionProperties {
 
     public void setMode(ExecutionMode mode) {
         this.mode = mode;
+    }
+
+    public boolean isRequireOsIsolation() {
+        return requireOsIsolation;
+    }
+
+    public void setRequireOsIsolation(boolean requireOsIsolation) {
+        this.requireOsIsolation = requireOsIsolation;
     }
 
     public int getCompileTimeoutSeconds() {
@@ -113,6 +128,24 @@ public class CodeExecutionProperties {
 
     public void setDockerImage(String dockerImage) {
         this.dockerImage = dockerImage;
+    }
+
+    public boolean isDockerPrePull() {
+        return dockerPrePull;
+    }
+
+    public void setDockerPrePull(boolean dockerPrePull) {
+        this.dockerPrePull = dockerPrePull;
+    }
+
+    public int getDockerPreflightTimeoutSeconds() {
+        return dockerPreflightTimeoutSeconds;
+    }
+
+    public void setDockerPreflightTimeoutSeconds(
+            int dockerPreflightTimeoutSeconds
+    ) {
+        this.dockerPreflightTimeoutSeconds = dockerPreflightTimeoutSeconds;
     }
 
     public int getDockerCpuCount() {

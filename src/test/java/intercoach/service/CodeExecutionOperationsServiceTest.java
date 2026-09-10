@@ -27,9 +27,19 @@ class CodeExecutionOperationsServiceTest {
         properties.setDockerMemoryMegabytes(384);
         properties.setDockerTmpfsMegabytes(48);
         properties.setDockerPidsLimit(32);
+        properties.setRequireOsIsolation(true);
         CodeExecutionRunMonitor runMonitor = new CodeExecutionRunMonitor();
+        CodeExecutionHostPreflight hostPreflight = new CodeExecutionHostPreflight(
+                properties,
+                (command, timeoutSeconds) -> true
+        );
+        hostPreflight.checkHost();
         CodeExecutionOperationsService service =
-                new CodeExecutionOperationsService(properties, runMonitor);
+                new CodeExecutionOperationsService(
+                        properties,
+                        hostPreflight,
+                        runMonitor
+                );
 
         CodeExecutionOperationsResponse response =
                 service.getOperationsStatus();
@@ -50,6 +60,11 @@ class CodeExecutionOperationsServiceTest {
         assertThat(response.hostPolicy().osLevelIsolation()).isTrue();
         assertThat(response.hostPolicy().networkDisabled()).isTrue();
         assertThat(response.hostPolicy().readOnlyRootFilesystem()).isTrue();
+        assertThat(response.preflight().osIsolationRequired()).isTrue();
+        assertThat(response.preflight().checked()).isTrue();
+        assertThat(response.preflight().hostReady()).isTrue();
+        assertThat(response.preflight().dockerAvailable()).isTrue();
+        assertThat(response.preflight().imageReady()).isTrue();
         assertThat(response.runtime().totalRuns()).isZero();
         assertThat(response.runtime().failedRuns()).isZero();
         assertThat(response.runtime().lastStatus()).isNull();
@@ -66,8 +81,15 @@ class CodeExecutionOperationsServiceTest {
     void getOperationsStatusReportsExecutionRuntimeStatistics() {
         CodeExecutionProperties properties = new CodeExecutionProperties();
         CodeExecutionRunMonitor runMonitor = new CodeExecutionRunMonitor();
+        CodeExecutionHostPreflight hostPreflight =
+                new CodeExecutionHostPreflight(properties);
+        hostPreflight.checkHost();
         CodeExecutionOperationsService service =
-                new CodeExecutionOperationsService(properties, runMonitor);
+                new CodeExecutionOperationsService(
+                        properties,
+                        hostPreflight,
+                        runMonitor
+                );
 
         runMonitor.record(response(CodeExecutionStatus.SUCCESS, 40));
         runMonitor.record(response(CodeExecutionStatus.TIME_LIMIT_EXCEEDED, 20));
@@ -80,6 +102,10 @@ class CodeExecutionOperationsServiceTest {
                 .isEqualTo("Local child process");
         assertThat(response.hostPolicy().localExecutionEnabled()).isTrue();
         assertThat(response.hostPolicy().osLevelIsolation()).isFalse();
+        assertThat(response.preflight().checked()).isTrue();
+        assertThat(response.preflight().hostReady()).isTrue();
+        assertThat(response.preflight().dockerAvailable()).isFalse();
+        assertThat(response.preflight().imageReady()).isFalse();
         assertThat(response.runtime().totalRuns()).isEqualTo(3);
         assertThat(response.runtime().successfulRuns()).isEqualTo(1);
         assertThat(response.runtime().failedRuns()).isEqualTo(2);

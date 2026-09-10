@@ -22,6 +22,7 @@ import intercoach.security.UserAccessService;
 import intercoach.service.AiFeedbackService;
 import intercoach.service.AppUserService;
 import intercoach.service.AuthService;
+import intercoach.service.CodeExecutionHostPreflight;
 import intercoach.service.CodeExecutionOperationsService;
 import intercoach.service.CodeExecutionRunMonitor;
 import intercoach.service.CodeExecutionService;
@@ -130,6 +131,7 @@ class ApiControllerIntegrationTest {
             AiFeedbackService.class,
             AppUserService.class,
             AuthService.class,
+            CodeExecutionHostPreflight.class,
             CodeExecutionOperationsService.class,
             CodeExecutionRunMonitor.class,
             CodeExecutionService.class,
@@ -250,6 +252,7 @@ class ApiControllerIntegrationTest {
                 .andExpect(content().string(containsString("data-user-role-id")))
                 .andExpect(content().string(containsString("isAdminSession()")))
                 .andExpect(content().string(containsString("status.runtime?.totalRuns")))
+                .andExpect(content().string(containsString("status.preflight?.hostReady")))
                 .andExpect(content().string(containsString("status.hostPolicy?.isolation")));
     }
 
@@ -431,6 +434,10 @@ class ApiControllerIntegrationTest {
                         .value(true))
                 .andExpect(jsonPath("$.hostPolicy.osLevelIsolation")
                         .value(false))
+                .andExpect(jsonPath("$.preflight.checked").value(true))
+                .andExpect(jsonPath("$.preflight.hostReady").value(true))
+                .andExpect(jsonPath("$.preflight.dockerAvailable").value(false))
+                .andExpect(jsonPath("$.preflight.imageReady").value(false))
                 .andExpect(jsonPath("$.runtime.totalRuns").value(0))
                 .andExpect(jsonPath("$.runtime.successfulRuns").value(0))
                 .andExpect(jsonPath("$.runtime.failedRuns").value(0))
