@@ -1,0 +1,108 @@
+name: Release Image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      revision: ${{ steps.release.outputs.revision }}
+      version: ${{ steps.release.outputs.version }}
+      image: ${{ steps.release.outputs.image }}
+    steps:
+      - name: Check out release
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate release tag
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_REF" =~ ^refs/tags/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo '::error::Run this workflow on a version tag such as v1.0.0.'
+            exit 1
+          fi
+          revision=$(git rev-parse HEAD)
+          if ! git merge-base --is-ancestor "$revision" refs/remotes/origin/main; then
+            echo '::error::The release commit must belong to main.'
+            exit 1
+          fi
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          repository=$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
+          echo "image=ghcr.io/$repository" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Run required tests
+        run: ./mvnw -B -ntp -Dintercoach.tests.require-docker=true clean test
+
+  publish:
+    name: Publish Release Image
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ${{ needs.verify.outputs.image }}
+      VERSION: ${{ needs.verify.outputs.version }}
+      REVISION: ${{ needs.verify.outputs.revision }}
+    steps:
+      - name: Check out verified commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.verify.outputs.revision }}
+          persist-credentials: false
+
+      - name: Build release image
+        run: |
+          docker build \
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$REVISION" \
+            --label "org.opencontainers.image.version=$VERSION" \
+            --tag "$IMAGE:$VERSION" \
+            --tag "$IMAGE:sha-$REVISION" .
+
+      - name: Log in to GitHub Container Registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Push release image
+        run: |
+          docker push "$IMAGE:$VERSION"
+          docker push "$IMAGE:sha-$REVISION"
+
+      - name: Record deployment reference
+        run: |
+          digest=$(docker image inspect "$IMAGE:$VERSION" --format '{{index .RepoDigests 0}}')
+          {
+            printf '### Release %s\n\n' "$VERSION"
+            printf 'Commit: `%s`\n\n' "$REVISION"
+            printf 'Image: `%s:%s`\n\n' "$IMAGE" "$VERSION"
+            printf 'Deploy by digest: `%s`\n' "$digest"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Log out of registry
+        if: always()
+        run: docker logout ghcr.io
