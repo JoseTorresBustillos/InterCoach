@@ -21,6 +21,20 @@ public class GlobalExceptionHandler {
     private static final Logger LOGGER =
             LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(ExecutionCapacityExceededException.class)
+    public ResponseEntity<ApiErrorResponse> handleExecutionCapacityExceeded(
+            ExecutionCapacityExceededException exception,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header("Retry-After", "1")
+                .body(ApiErrorResponse.of(
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        exception.getMessage(),
+                        request.getRequestURI()
+                ));
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleResourceNotFound(
             ResourceNotFoundException exception,

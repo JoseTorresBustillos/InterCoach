@@ -8,6 +8,7 @@ import intercoach.model.SubmissionStatus;
 import intercoach.model.TestCase;
 import intercoach.config.CodeExecutionProperties;
 import intercoach.exception.GlobalExceptionHandler;
+import intercoach.exception.ExecutionCapacityExceededException;
 import intercoach.repository.AppUserRepository;
 import intercoach.repository.MockInterviewRepository;
 import intercoach.repository.ProblemRepository;
@@ -75,6 +76,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(classes = ApiControllerIntegrationTest.ControllerTestApplication.class)
@@ -423,6 +425,7 @@ class ApiControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.mode").value("LOCAL"))
                 .andExpect(jsonPath("$.supportedLanguage").value("Java"))
+                .andExpect(jsonPath("$.maxConcurrentRuns").value(2))
                 .andExpect(jsonPath("$.compileTimeoutSeconds").value(5))
                 .andExpect(jsonPath("$.testTimeoutSeconds").value(2))
                 .andExpect(jsonPath("$.visibleTestCasesOnly").value(true))
@@ -1069,6 +1072,34 @@ class ApiControllerIntegrationTest {
 
     private AppUser user(String username) {
         return user(42L, username, "USER");
+    }
+
+    @Test
+    void executionCapacityErrorsReturnRetryableServiceUnavailable() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        String token = jwtService.generateToken(user).value();
+        given(appUserRepository.findByUsernameIgnoreCase("coder"))
+                .willReturn(Optional.of(user));
+        given(problemRepository.existsById(1L))
+                .willThrow(new ExecutionCapacityExceededException());
+
+        mockMvc.perform(post("/api/problems/1/run")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "language": "Java",
+                                  "submittedCode": "public class Main {}"
+                                }
+                                """))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Retry-After", "1"))
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.path").value("/api/problems/1/run"))
+                .andExpect(jsonPath("$.message").value(
+                        "Code execution is at capacity. Please try again shortly."
+                ));
     }
 
     private AppUser user(Long id, String username, String role) {

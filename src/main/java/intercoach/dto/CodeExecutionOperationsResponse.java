@@ -9,6 +9,7 @@ public record CodeExecutionOperationsResponse(
         int maxSourceCharacters,
         int maxHeapMegabytes,
         int activeProcessorCount,
+        int maxConcurrentRuns,
         boolean visibleTestCasesOnly,
         boolean temporaryWorkspacePerRun,
         boolean childEnvironmentSanitized,

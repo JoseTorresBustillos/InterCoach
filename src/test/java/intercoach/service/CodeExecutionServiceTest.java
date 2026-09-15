@@ -7,6 +7,7 @@ import intercoach.dto.CodeExecutionRuntimeStatsResponse;
 import intercoach.dto.CodeExecutionStatus;
 import intercoach.dto.CodeExecutionTestCaseStatus;
 import intercoach.exception.ResourceNotFoundException;
+import intercoach.exception.ExecutionCapacityExceededException;
 import intercoach.model.TestCase;
 import intercoach.repository.ProblemRepository;
 import intercoach.repository.TestCaseRepository;
@@ -19,10 +20,15 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class CodeExecutionServiceTest {
@@ -343,7 +349,60 @@ class CodeExecutionServiceTest {
     }
 
     private CodeExecutionProperties executionProperties() {
-        return new CodeExecutionProperties();
+        CodeExecutionProperties settings = new CodeExecutionProperties();
+        settings.setMaxConcurrentRuns(1);
+        return settings;
+    }
+
+    @Test
+    void rejectsConcurrentRequestsAndReleasesCapacityAfterCompletion() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch finish = new CountDownLatch(1);
+        given(problemRepository.existsById(1L)).willAnswer(invocation -> {
+            entered.countDown();
+            assertThat(finish.await(5, TimeUnit.SECONDS)).isTrue();
+            return true;
+        });
+        given(testCaseRepository.findByProblemId(1L)).willReturn(List.of());
+
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var accepted = executor.submit(() -> codeExecutionService.runCode(
+                    1L, request("public class Main {}", "Java")
+            ));
+            try {
+                assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+                for (int attempt = 0; attempt < 3; attempt++) {
+                    assertThatThrownBy(() -> codeExecutionService.runCode(
+                            1L, request("public class Main {}", "Java")
+                    )).isInstanceOf(ExecutionCapacityExceededException.class);
+                }
+                verify(problemRepository, times(1)).existsById(1L);
+            } finally {
+                finish.countDown();
+            }
+            assertThat(accepted.get(5, TimeUnit.SECONDS).status())
+                    .isEqualTo(CodeExecutionStatus.NO_TESTS);
+        }
+
+        assertThat(codeExecutionService.runCode(
+                1L, request("public class Main {}", "Java")
+        ).status()).isEqualTo(CodeExecutionStatus.NO_TESTS);
+        assertThat(runMonitor.snapshot().totalRuns()).isEqualTo(2);
+    }
+
+    @Test
+    void releasesCapacityAfterRepositoryFailure() {
+        given(problemRepository.existsById(1L))
+                .willThrow(new IllegalStateException("Database unavailable"))
+                .willReturn(true);
+        given(testCaseRepository.findByProblemId(1L)).willReturn(List.of());
+
+        assertThatThrownBy(() -> codeExecutionService.runCode(
+                1L, request("public class Main {}", "Java")
+        )).hasMessage("Database unavailable");
+        assertThat(codeExecutionService.runCode(
+                1L, request("public class Main {}", "Java")
+        ).status()).isEqualTo(CodeExecutionStatus.NO_TESTS);
     }
 
     private CodeExecutionRequest request(String submittedCode, String language) {

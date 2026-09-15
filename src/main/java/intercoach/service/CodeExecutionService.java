@@ -7,6 +7,7 @@ import intercoach.dto.CodeExecutionStatus;
 import intercoach.dto.CodeExecutionTestCaseResponse;
 import intercoach.dto.CodeExecutionTestCaseStatus;
 import intercoach.exception.ResourceNotFoundException;
+import intercoach.exception.ExecutionCapacityExceededException;
 import intercoach.model.TestCase;
 import intercoach.repository.ProblemRepository;
 import intercoach.repository.TestCaseRepository;
@@ -23,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Semaphore;
 
 @Service
 public class CodeExecutionService {
@@ -35,6 +37,7 @@ public class CodeExecutionService {
     private final TestCaseRepository testCaseRepository;
     private final CodeExecutionProperties properties;
     private final CodeExecutionRunMonitor runMonitor;
+    private final Semaphore executionSlots;
 
     public CodeExecutionService(
             ProblemRepository problemRepository,
@@ -46,9 +49,25 @@ public class CodeExecutionService {
         this.testCaseRepository = testCaseRepository;
         this.properties = properties;
         this.runMonitor = runMonitor;
+        this.executionSlots = new Semaphore(properties.getMaxConcurrentRuns());
     }
 
     public CodeExecutionResponse runCode(
+            Long problemId,
+            CodeExecutionRequest request
+    ) {
+        // Reject overload immediately instead of accumulating waiting HTTP requests.
+        if (!executionSlots.tryAcquire()) {
+            throw new ExecutionCapacityExceededException();
+        }
+        try {
+            return runAcceptedCode(problemId, request);
+        } finally {
+            executionSlots.release();
+        }
+    }
+
+    private CodeExecutionResponse runAcceptedCode(
             Long problemId,
             CodeExecutionRequest request
     ) {

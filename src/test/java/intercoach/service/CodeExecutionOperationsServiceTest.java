@@ -22,6 +22,7 @@ class CodeExecutionOperationsServiceTest {
         properties.setMaxSourceCharacters(12000);
         properties.setMaxHeapMegabytes(96);
         properties.setActiveProcessorCount(2);
+        properties.setMaxConcurrentRuns(3);
         properties.setDockerImage("example/java-runner:21");
         properties.setDockerCpuCount(2);
         properties.setDockerMemoryMegabytes(384);
@@ -52,6 +53,7 @@ class CodeExecutionOperationsServiceTest {
         assertThat(response.maxSourceCharacters()).isEqualTo(12000);
         assertThat(response.maxHeapMegabytes()).isEqualTo(96);
         assertThat(response.activeProcessorCount()).isEqualTo(2);
+        assertThat(response.maxConcurrentRuns()).isEqualTo(3);
         assertThat(response.visibleTestCasesOnly()).isTrue();
         assertThat(response.temporaryWorkspacePerRun()).isTrue();
         assertThat(response.childEnvironmentSanitized()).isTrue();

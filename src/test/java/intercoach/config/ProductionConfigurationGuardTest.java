@@ -101,6 +101,13 @@ class ProductionConfigurationGuardTest {
         );
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "-1"})
+    void rejectsNonPositiveExecutionCapacity(String capacity) {
+        production().withPropertyValues("intercoach.execution.max-concurrent-runs=" + capacity)
+                .run(context -> assertThat(context).hasFailed());
+    }
+
     @Configuration(proxyBeanMethods = false)
     @EnableConfigurationProperties(CodeExecutionProperties.class)
     @Import(ProductionConfigurationGuard.class)

@@ -21,6 +21,9 @@ public class CodeExecutionProperties {
     private boolean requireOsIsolation;
 
     @Min(1)
+    private int maxConcurrentRuns = 2;
+
+    @Min(1)
     private int compileTimeoutSeconds = 5;
 
     @Min(1)
@@ -60,6 +63,14 @@ public class CodeExecutionProperties {
 
     public ExecutionMode getMode() {
         return mode;
+    }
+
+    public int getMaxConcurrentRuns() {
+        return maxConcurrentRuns;
+    }
+
+    public void setMaxConcurrentRuns(int maxConcurrentRuns) {
+        this.maxConcurrentRuns = maxConcurrentRuns;
     }
 
     public void setMode(ExecutionMode mode) {

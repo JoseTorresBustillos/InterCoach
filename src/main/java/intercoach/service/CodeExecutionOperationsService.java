@@ -35,6 +35,7 @@ public class CodeExecutionOperationsService {
                 properties.getMaxSourceCharacters(),
                 properties.getMaxHeapMegabytes(),
                 properties.getActiveProcessorCount(),
+                properties.getMaxConcurrentRuns(),
                 true,
                 true,
                 true,
