@@ -14,7 +14,6 @@ import intercoach.repository.TestCaseRepository;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -191,18 +190,20 @@ public class CodeExecutionService {
         Instant startedAt = Instant.now();
         Path outputFile = workspace.resolve("test-" + testCase.getId() + ".out");
         Path errorFile = workspace.resolve("test-" + testCase.getId() + ".err");
+        Path inputFile = workspace.resolve("test-" + testCase.getId() + ".in");
 
         try {
+            // File-backed stdin cannot block the request while filling a process pipe.
+            Files.writeString(inputFile, value(testCase.getInput()), StandardCharsets.UTF_8);
             ProcessBuilder processBuilder = new ProcessBuilder(testCommand(workspace))
                     .directory(workspace.toFile())
+                    .redirectInput(inputFile.toFile())
                     .redirectOutput(outputFile.toFile())
                     .redirectError(errorFile.toFile());
 
             sanitizeEnvironment(processBuilder);
 
             Process process = processBuilder.start();
-
-            writeInput(process, testCase.getInput());
 
             boolean completed = waitFor(
                     process,
@@ -379,12 +380,6 @@ public class CodeExecutionService {
         return response;
     }
 
-    private void writeInput(Process process, String input) throws IOException {
-        try (OutputStream stdin = process.getOutputStream()) {
-            stdin.write(value(input).getBytes(StandardCharsets.UTF_8));
-        }
-    }
-
     private boolean waitFor(Process process, int seconds) {
         try {
             boolean completed = process.waitFor(seconds, TimeUnit.SECONDS);
@@ -402,7 +397,7 @@ public class CodeExecutionService {
     }
 
     List<String> compileCommand(Path workspace) {
-        List<String> command = baseExecutionCommand(workspace);
+        List<String> command = baseExecutionCommand(workspace, false);
 
         command.addAll(List.of(
                 "javac",
@@ -420,7 +415,7 @@ public class CodeExecutionService {
         String tmpDirectory = dockerMode()
                 ? "/tmp"
                 : workspace.toAbsolutePath().toString();
-        List<String> command = baseExecutionCommand(workspace);
+        List<String> command = baseExecutionCommand(workspace, true);
 
         command.addAll(List.of(
                 "java",
@@ -438,7 +433,7 @@ public class CodeExecutionService {
         return command;
     }
 
-    private List<String> baseExecutionCommand(Path workspace) {
+    private List<String> baseExecutionCommand(Path workspace, boolean forwardInput) {
         if (!dockerMode()) {
             return new ArrayList<>();
         }
@@ -464,9 +459,13 @@ public class CodeExecutionService {
                 "-v",
                 workspace.toAbsolutePath() + ":/workspace:rw",
                 "-w",
-                "/workspace",
-                properties.getDockerImage()
+                "/workspace"
         ));
+
+        if (forwardInput) {
+            command.add("--interactive");
+        }
+        command.add(properties.getDockerImage());
 
         return command;
     }

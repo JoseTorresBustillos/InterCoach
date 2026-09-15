@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -29,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 @ExtendWith(MockitoExtension.class)
 class CodeExecutionServiceTest {
@@ -274,6 +276,51 @@ class CodeExecutionServiceTest {
     }
 
     @Test
+    void largeUnreadInputStillTimesOutAndReleasesExecutionCapacity() {
+        properties.setTestTimeoutSeconds(1);
+        given(problemRepository.existsById(1L)).willReturn(true);
+        given(testCaseRepository.findByProblemId(1L)).willReturn(List.of(
+                testCase(10L, "x".repeat(2_000_000), "done", false)
+        ));
+
+        CodeExecutionResponse response = assertTimeoutPreemptively(
+                Duration.ofSeconds(10),
+                () -> codeExecutionService.runCode(1L, request("""
+                        public class Main {
+                            public static void main(String[] args) throws Exception {
+                                Thread.sleep(30000);
+                            }
+                        }
+                        """, "Java"))
+        );
+
+        assertThat(response.status()).isEqualTo(CodeExecutionStatus.TIME_LIMIT_EXCEEDED);
+        given(testCaseRepository.findByProblemId(1L)).willReturn(List.of());
+        assertThat(codeExecutionService.runCode(
+                1L, request("public class Main {}", "Java")
+        ).status()).isEqualTo(CodeExecutionStatus.NO_TESTS);
+    }
+
+    @Test
+    void largeInputIsDeliveredCompletelyAndReachesEndOfFile() {
+        String input = "abc".repeat(100_000);
+        given(problemRepository.existsById(1L)).willReturn(true);
+        given(testCaseRepository.findByProblemId(1L)).willReturn(List.of(
+                testCase(10L, input, String.valueOf(input.length()), false)
+        ));
+
+        CodeExecutionResponse response = codeExecutionService.runCode(1L, request("""
+                public class Main {
+                    public static void main(String[] args) throws Exception {
+                        System.out.print(System.in.readAllBytes().length);
+                    }
+                }
+                """, "Java"));
+
+        assertThat(response.status()).isEqualTo(CodeExecutionStatus.SUCCESS);
+    }
+
+    @Test
     void compileCommandCanRunInsideDockerSandbox() {
         properties.setMode(CodeExecutionProperties.ExecutionMode.DOCKER);
         properties.setDockerImage("eclipse-temurin:21-jdk");
@@ -321,6 +368,7 @@ class CodeExecutionServiceTest {
                 codeExecutionService.testCommand(Path.of("/tmp/workspace"));
 
         assertThat(command)
+                .containsSequence("--interactive", properties.getDockerImage(), "java")
                 .contains(
                         "docker",
                         "run",
