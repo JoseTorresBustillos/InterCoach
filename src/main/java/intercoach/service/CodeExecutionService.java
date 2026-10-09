@@ -483,19 +483,39 @@ public class CodeExecutionService {
         processBuilder.environment().remove("JDK_JAVA_OPTIONS");
     }
 
-    private String readLimited(Path path) throws IOException {
+    String readLimited(Path path) throws IOException {
         if (!Files.exists(path)) {
             return "";
         }
 
-        String output = Files.readString(path, StandardCharsets.UTF_8);
+        int limit = properties.getOutputLimitCharacters();
+        char[] buffer = new char[Math.min(limit, 4096)];
+        StringBuilder output = new StringBuilder(buffer.length);
 
-        if (output.length() <= properties.getOutputLimitCharacters()) {
-            return output;
+        // Decode only the bounded prefix; output files may be much larger than the heap.
+        try (var reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            while (output.length() < limit) {
+                int count = reader.read(
+                        buffer, 0, Math.min(buffer.length, limit - output.length())
+                );
+                if (count == -1) {
+                    return output.toString();
+                }
+                output.append(buffer, 0, count);
+            }
+
+            int next = reader.read();
+            if (next == -1) {
+                return output.toString();
+            }
+            // Avoid returning half of a supplementary Unicode character at the boundary.
+            if (!output.isEmpty()
+                    && Character.isHighSurrogate(output.charAt(output.length() - 1))
+                    && Character.isLowSurrogate((char) next)) {
+                output.setLength(output.length() - 1);
+            }
+            return output + "\n... output truncated ...";
         }
-
-        return output.substring(0, properties.getOutputLimitCharacters())
-                + "\n... output truncated ...";
     }
 
     private String normalized(String output) {

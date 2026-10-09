@@ -13,12 +13,16 @@ import intercoach.repository.ProblemRepository;
 import intercoach.repository.TestCaseRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.file.Path;
+import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
+import java.io.RandomAccessFile;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -34,6 +38,9 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 @ExtendWith(MockitoExtension.class)
 class CodeExecutionServiceTest {
+
+    @TempDir
+    private Path outputDirectory;
 
     @Mock
     private ProblemRepository problemRepository;
@@ -400,6 +407,45 @@ class CodeExecutionServiceTest {
         CodeExecutionProperties settings = new CodeExecutionProperties();
         settings.setMaxConcurrentRuns(1);
         return settings;
+    }
+
+    @Test
+    void outputReaderHandlesMissingEmptyAndExactLimitFiles() throws Exception {
+        properties.setOutputLimitCharacters(5);
+        Path output = outputDirectory.resolve("output.txt");
+        assertThat(codeExecutionService.readLimited(output)).isEmpty();
+        Files.writeString(output, "", StandardCharsets.UTF_8);
+        assertThat(codeExecutionService.readLimited(output)).isEmpty();
+        Files.writeString(output, "abcde", StandardCharsets.UTF_8);
+        assertThat(codeExecutionService.readLimited(output)).isEqualTo("abcde");
+        Files.writeString(output, "abcdef", StandardCharsets.UTF_8);
+        assertThat(codeExecutionService.readLimited(output))
+                .isEqualTo("abcde\n... output truncated ...");
+    }
+
+    @Test
+    void outputReaderCountsDecodedCharactersAndPreservesSurrogatePairs() throws Exception {
+        properties.setOutputLimitCharacters(4);
+        Path output = outputDirectory.resolve("unicode.txt");
+        Files.writeString(output, "\u00e9\u4e2d\ud83d\ude00x", StandardCharsets.UTF_8);
+        assertThat(codeExecutionService.readLimited(output))
+                .isEqualTo("\u00e9\u4e2d\ud83d\ude00\n... output truncated ...");
+        properties.setOutputLimitCharacters(3);
+        assertThat(codeExecutionService.readLimited(output))
+                .isEqualTo("\u00e9\u4e2d\n... output truncated ...");
+    }
+
+    @Test
+    void outputReaderReadsOnlyPrefixOfHugeSparseFile() throws Exception {
+        properties.setOutputLimitCharacters(10);
+        Path output = outputDirectory.resolve("large.out");
+        try (RandomAccessFile file = new RandomAccessFile(output.toFile(), "rw")) {
+            file.write("abcdefghijklmnop".getBytes(StandardCharsets.UTF_8));
+            file.setLength(3_000_000_000L);
+        }
+
+        assertThat(codeExecutionService.readLimited(output))
+                .isEqualTo("abcdefghij\n... output truncated ...");
     }
 
     @Test
