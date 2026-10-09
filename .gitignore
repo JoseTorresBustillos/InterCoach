@@ -36,3 +36,8 @@ build/
 node_modules/
 package.json
 package-lock.json
+
+# Local credentials and environment overrides must never be committed.
+.env
+.env.*
+!.env.example

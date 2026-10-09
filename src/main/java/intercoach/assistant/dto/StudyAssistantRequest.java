@@ -1,0 +1,17 @@
+package intercoach.assistant.dto;
+
+import jakarta.validation.constraints.NotBlank;
+
+public class StudyAssistantRequest {
+
+    @NotBlank
+    private String question;
+
+    public String getQuestion() {
+        return question;
+    }
+
+    public void setQuestion(String question) {
+        this.question = question;
+    }
+}

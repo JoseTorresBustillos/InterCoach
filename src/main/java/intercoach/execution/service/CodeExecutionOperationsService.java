@@ -1,0 +1,74 @@
+package intercoach.execution.service;
+
+import intercoach.execution.config.CodeExecutionProperties;
+import intercoach.execution.dto.CodeExecutionDockerSettingsResponse;
+import intercoach.execution.dto.CodeExecutionHostPolicyResponse;
+import intercoach.execution.dto.CodeExecutionOperationsResponse;
+import org.springframework.stereotype.Service;
+
+@Service
+public class CodeExecutionOperationsService {
+
+    private static final String SUPPORTED_LANGUAGE = "Java";
+
+    private final CodeExecutionProperties properties;
+    private final CodeExecutionHostPreflight hostPreflight;
+    private final CodeExecutionRunMonitor runMonitor;
+
+    public CodeExecutionOperationsService(
+            CodeExecutionProperties properties,
+            CodeExecutionHostPreflight hostPreflight,
+            CodeExecutionRunMonitor runMonitor
+    ) {
+        this.properties = properties;
+        this.hostPreflight = hostPreflight;
+        this.runMonitor = runMonitor;
+    }
+
+    public CodeExecutionOperationsResponse getOperationsStatus() {
+        return new CodeExecutionOperationsResponse(
+                properties.getMode().name(),
+                SUPPORTED_LANGUAGE,
+                properties.getCompileTimeoutSeconds(),
+                properties.getTestTimeoutSeconds(),
+                properties.getOutputLimitCharacters(),
+                properties.getMaxSourceCharacters(),
+                properties.getMaxHeapMegabytes(),
+                properties.getActiveProcessorCount(),
+                properties.getMaxConcurrentRuns(),
+                true,
+                true,
+                true,
+                hostPolicy(),
+                hostPreflight.snapshot(),
+                runMonitor.snapshot(),
+                dockerSettings()
+        );
+    }
+
+    private CodeExecutionHostPolicyResponse hostPolicy() {
+        boolean dockerMode = properties.getMode()
+                == CodeExecutionProperties.ExecutionMode.DOCKER;
+
+        return new CodeExecutionHostPolicyResponse(
+                dockerMode ? "Docker container" : "Local child process",
+                !dockerMode,
+                dockerMode,
+                dockerMode,
+                dockerMode,
+                "Temporary workspace per run"
+        );
+    }
+
+    private CodeExecutionDockerSettingsResponse dockerSettings() {
+        return new CodeExecutionDockerSettingsResponse(
+                properties.getDockerImage(),
+                properties.getDockerCpuCount(),
+                properties.getDockerMemoryMegabytes(),
+                properties.getDockerTmpfsMegabytes(),
+                properties.getDockerPidsLimit(),
+                true,
+                true
+        );
+    }
+}

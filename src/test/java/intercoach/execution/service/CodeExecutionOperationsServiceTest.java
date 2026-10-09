@@ -1,0 +1,136 @@
+package intercoach.execution.service;
+
+import intercoach.execution.config.CodeExecutionProperties;
+import intercoach.execution.dto.CodeExecutionOperationsResponse;
+import intercoach.execution.dto.CodeExecutionResponse;
+import intercoach.execution.dto.CodeExecutionStatus;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class CodeExecutionOperationsServiceTest {
+
+    @Test
+    void getOperationsStatusReportsConfiguredLimitsAndSafeguards() {
+        CodeExecutionProperties properties = new CodeExecutionProperties();
+        properties.setMode(CodeExecutionProperties.ExecutionMode.DOCKER);
+        properties.setCompileTimeoutSeconds(7);
+        properties.setTestTimeoutSeconds(3);
+        properties.setOutputLimitCharacters(2048);
+        properties.setMaxSourceCharacters(12000);
+        properties.setMaxHeapMegabytes(96);
+        properties.setActiveProcessorCount(2);
+        properties.setMaxConcurrentRuns(3);
+        properties.setDockerImage("example/java-runner:21");
+        properties.setDockerCpuCount(2);
+        properties.setDockerMemoryMegabytes(384);
+        properties.setDockerTmpfsMegabytes(48);
+        properties.setDockerPidsLimit(32);
+        properties.setRequireOsIsolation(true);
+        CodeExecutionRunMonitor runMonitor = new CodeExecutionRunMonitor();
+        CodeExecutionHostPreflight hostPreflight = new CodeExecutionHostPreflight(
+                properties,
+                (command, timeoutSeconds) -> true
+        );
+        hostPreflight.checkHost();
+        CodeExecutionOperationsService service =
+                new CodeExecutionOperationsService(
+                        properties,
+                        hostPreflight,
+                        runMonitor
+                );
+
+        CodeExecutionOperationsResponse response =
+                service.getOperationsStatus();
+
+        assertThat(response.mode()).isEqualTo("DOCKER");
+        assertThat(response.supportedLanguage()).isEqualTo("Java");
+        assertThat(response.compileTimeoutSeconds()).isEqualTo(7);
+        assertThat(response.testTimeoutSeconds()).isEqualTo(3);
+        assertThat(response.outputLimitCharacters()).isEqualTo(2048);
+        assertThat(response.maxSourceCharacters()).isEqualTo(12000);
+        assertThat(response.maxHeapMegabytes()).isEqualTo(96);
+        assertThat(response.activeProcessorCount()).isEqualTo(2);
+        assertThat(response.maxConcurrentRuns()).isEqualTo(3);
+        assertThat(response.visibleTestCasesOnly()).isTrue();
+        assertThat(response.temporaryWorkspacePerRun()).isTrue();
+        assertThat(response.childEnvironmentSanitized()).isTrue();
+        assertThat(response.hostPolicy().isolation()).isEqualTo("Docker container");
+        assertThat(response.hostPolicy().localExecutionEnabled()).isFalse();
+        assertThat(response.hostPolicy().osLevelIsolation()).isTrue();
+        assertThat(response.hostPolicy().networkDisabled()).isTrue();
+        assertThat(response.hostPolicy().readOnlyRootFilesystem()).isTrue();
+        assertThat(response.preflight().osIsolationRequired()).isTrue();
+        assertThat(response.preflight().checked()).isTrue();
+        assertThat(response.preflight().hostReady()).isTrue();
+        assertThat(response.preflight().dockerAvailable()).isTrue();
+        assertThat(response.preflight().imageReady()).isTrue();
+        assertThat(response.runtime().totalRuns()).isZero();
+        assertThat(response.runtime().failedRuns()).isZero();
+        assertThat(response.runtime().lastStatus()).isNull();
+        assertThat(response.docker().image()).isEqualTo("example/java-runner:21");
+        assertThat(response.docker().cpuCount()).isEqualTo(2);
+        assertThat(response.docker().memoryMegabytes()).isEqualTo(384);
+        assertThat(response.docker().tmpfsMegabytes()).isEqualTo(48);
+        assertThat(response.docker().pidsLimit()).isEqualTo(32);
+        assertThat(response.docker().networkDisabled()).isTrue();
+        assertThat(response.docker().readOnlyRootFilesystem()).isTrue();
+    }
+
+    @Test
+    void getOperationsStatusReportsExecutionRuntimeStatistics() {
+        CodeExecutionProperties properties = new CodeExecutionProperties();
+        CodeExecutionRunMonitor runMonitor = new CodeExecutionRunMonitor();
+        CodeExecutionHostPreflight hostPreflight =
+                new CodeExecutionHostPreflight(properties);
+        hostPreflight.checkHost();
+        CodeExecutionOperationsService service =
+                new CodeExecutionOperationsService(
+                        properties,
+                        hostPreflight,
+                        runMonitor
+                );
+
+        runMonitor.record(response(CodeExecutionStatus.SUCCESS, 40));
+        runMonitor.record(response(CodeExecutionStatus.TIME_LIMIT_EXCEEDED, 20));
+        runMonitor.record(response(CodeExecutionStatus.COMPILE_ERROR, 30));
+
+        CodeExecutionOperationsResponse response =
+                service.getOperationsStatus();
+
+        assertThat(response.hostPolicy().isolation())
+                .isEqualTo("Local child process");
+        assertThat(response.hostPolicy().localExecutionEnabled()).isTrue();
+        assertThat(response.hostPolicy().osLevelIsolation()).isFalse();
+        assertThat(response.preflight().checked()).isTrue();
+        assertThat(response.preflight().hostReady()).isTrue();
+        assertThat(response.preflight().dockerAvailable()).isFalse();
+        assertThat(response.preflight().imageReady()).isFalse();
+        assertThat(response.runtime().totalRuns()).isEqualTo(3);
+        assertThat(response.runtime().successfulRuns()).isEqualTo(1);
+        assertThat(response.runtime().failedRuns()).isEqualTo(2);
+        assertThat(response.runtime().compileErrorRuns()).isEqualTo(1);
+        assertThat(response.runtime().timeoutRuns()).isEqualTo(1);
+        assertThat(response.runtime().averageDurationMs()).isEqualTo(30);
+        assertThat(response.runtime().lastDurationMs()).isEqualTo(30);
+        assertThat(response.runtime().lastStatus()).isEqualTo("COMPILE_ERROR");
+        assertThat(response.runtime().lastRunAt()).isNotNull();
+    }
+
+    private CodeExecutionResponse response(
+            CodeExecutionStatus status,
+            long durationMs
+    ) {
+        return new CodeExecutionResponse(
+                1L,
+                status,
+                status == CodeExecutionStatus.SUCCESS,
+                status == CodeExecutionStatus.SUCCESS ? 1 : 0,
+                1,
+                durationMs,
+                "",
+                List.of()
+        );
+    }
+}

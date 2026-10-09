@@ -32,8 +32,8 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Run tests
-        run: ./mvnw -B -ntp -Dintercoach.tests.require-docker=true test
+      - name: Run unit and integration tests
+        run: ./mvnw -B -ntp -Dintercoach.tests.require-docker=true verify
 
   docker-build:
     name: Docker Build

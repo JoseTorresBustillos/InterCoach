@@ -53,7 +53,7 @@ jobs:
           cache: maven
 
       - name: Run required tests
-        run: ./mvnw -B -ntp -Dintercoach.tests.require-docker=true clean test
+        run: ./mvnw -B -ntp -Dintercoach.tests.require-docker=true clean verify
 
   publish:
     name: Publish Release Image

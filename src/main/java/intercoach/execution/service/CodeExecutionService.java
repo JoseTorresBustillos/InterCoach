@@ -1,0 +1,550 @@
+package intercoach.execution.service;
+
+import intercoach.execution.config.CodeExecutionProperties;
+import intercoach.execution.dto.CodeExecutionRequest;
+import intercoach.execution.dto.CodeExecutionResponse;
+import intercoach.execution.dto.CodeExecutionStatus;
+import intercoach.execution.dto.CodeExecutionTestCaseResponse;
+import intercoach.execution.dto.CodeExecutionTestCaseStatus;
+import intercoach.problem.model.TestCase;
+import intercoach.problem.repository.ProblemRepository;
+import intercoach.problem.repository.TestCaseRepository;
+import intercoach.shared.exception.ExecutionCapacityExceededException;
+import intercoach.shared.exception.ResourceNotFoundException;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import org.springframework.stereotype.Service;
+
+@Service
+public class CodeExecutionService {
+
+    private static final String JAVA_LANGUAGE = "Java";
+    private static final String MAIN_CLASS = "Main";
+    private static final String SOURCE_FILE = MAIN_CLASS + ".java";
+
+    private final ProblemRepository problemRepository;
+    private final TestCaseRepository testCaseRepository;
+    private final CodeExecutionProperties properties;
+    private final CodeExecutionRunMonitor runMonitor;
+    private final Semaphore executionSlots;
+
+    public CodeExecutionService(
+            ProblemRepository problemRepository,
+            TestCaseRepository testCaseRepository,
+            CodeExecutionProperties properties,
+            CodeExecutionRunMonitor runMonitor
+    ) {
+        this.problemRepository = problemRepository;
+        this.testCaseRepository = testCaseRepository;
+        this.properties = properties;
+        this.runMonitor = runMonitor;
+        this.executionSlots = new Semaphore(properties.getMaxConcurrentRuns());
+    }
+
+    public CodeExecutionResponse runCode(
+            Long problemId,
+            CodeExecutionRequest request
+    ) {
+        // Reject overload immediately instead of accumulating waiting HTTP requests.
+        if (!executionSlots.tryAcquire()) {
+            throw new ExecutionCapacityExceededException();
+        }
+        try {
+            return runAcceptedCode(problemId, request);
+        } finally {
+            executionSlots.release();
+        }
+    }
+
+    private CodeExecutionResponse runAcceptedCode(
+            Long problemId,
+            CodeExecutionRequest request
+    ) {
+        if (!problemRepository.existsById(problemId)) {
+            throw new ResourceNotFoundException(
+                    "Problem not found with id: " + problemId
+            );
+        }
+
+        Instant startedAt = Instant.now();
+
+        if (!JAVA_LANGUAGE.equalsIgnoreCase(request.getLanguage())) {
+            return monitored(unsupportedLanguageResponse(
+                    problemId,
+                    request.getLanguage(),
+                    elapsedMs(startedAt)
+            ));
+        }
+
+        if (request.getSubmittedCode().length()
+                > properties.getMaxSourceCharacters()) {
+            return monitored(sourceTooLargeResponse(
+                    problemId,
+                    elapsedMs(startedAt)
+            ));
+        }
+
+        // User-triggered runs execute only visible cases so hidden cases stay hidden.
+        List<TestCase> visibleTestCases = testCaseRepository
+                .findByProblemId(problemId)
+                .stream()
+                .filter(testCase -> !testCase.isHidden())
+                .toList();
+
+        if (visibleTestCases.isEmpty()) {
+            return monitored(noTestsResponse(problemId, elapsedMs(startedAt)));
+        }
+
+        Path workspace = null;
+
+        try {
+            // A fresh workspace keeps compiled artifacts isolated per request.
+            workspace = Files.createTempDirectory("intercoach-code-run-");
+            Files.writeString(
+                    workspace.resolve(SOURCE_FILE),
+                    request.getSubmittedCode(),
+                    StandardCharsets.UTF_8
+            );
+
+            String compileOutput = compile(workspace);
+
+            if (!compileOutput.isBlank()) {
+                return monitored(new CodeExecutionResponse(
+                        problemId,
+                        CodeExecutionStatus.COMPILE_ERROR,
+                        false,
+                        0,
+                        visibleTestCases.size(),
+                        elapsedMs(startedAt),
+                        compileOutput,
+                        List.of()
+                ));
+            }
+
+            Path executionWorkspace = workspace;
+            List<CodeExecutionTestCaseResponse> results = visibleTestCases.stream()
+                    .map(testCase -> runTestCase(executionWorkspace, testCase))
+                    .toList();
+
+            return monitored(executionResponse(
+                    problemId,
+                    elapsedMs(startedAt),
+                    results
+            ));
+        } catch (IOException exception) {
+            return monitored(new CodeExecutionResponse(
+                    problemId,
+                    CodeExecutionStatus.RUNTIME_ERROR,
+                    false,
+                    0,
+                    visibleTestCases.size(),
+                    elapsedMs(startedAt),
+                    "Code execution workspace could not be prepared: "
+                            + exception.getMessage(),
+                    List.of()
+            ));
+        } finally {
+            cleanup(workspace);
+        }
+    }
+
+    private String compile(Path workspace) throws IOException {
+        ProcessBuilder processBuilder = new ProcessBuilder(compileCommand(workspace))
+                .directory(workspace.toFile())
+                .redirectErrorStream(true)
+                .redirectOutput(workspace.resolve("compile.out").toFile());
+
+        sanitizeEnvironment(processBuilder);
+
+        Process process = processBuilder.start();
+        boolean completed = waitFor(
+                process,
+                properties.getCompileTimeoutSeconds()
+        );
+
+        if (!completed) {
+            return "Compilation timed out after "
+                    + properties.getCompileTimeoutSeconds()
+                    + " seconds.";
+        }
+
+        String output = readLimited(workspace.resolve("compile.out"));
+
+        return process.exitValue() == 0 ? "" : output;
+    }
+
+    private CodeExecutionTestCaseResponse runTestCase(
+            Path workspace,
+            TestCase testCase
+    ) {
+        Instant startedAt = Instant.now();
+        Path outputFile = workspace.resolve("test-" + testCase.getId() + ".out");
+        Path errorFile = workspace.resolve("test-" + testCase.getId() + ".err");
+        Path inputFile = workspace.resolve("test-" + testCase.getId() + ".in");
+
+        try {
+            // File-backed stdin cannot block the request while filling a process pipe.
+            Files.writeString(inputFile, value(testCase.getInput()), StandardCharsets.UTF_8);
+            ProcessBuilder processBuilder = new ProcessBuilder(testCommand(workspace))
+                    .directory(workspace.toFile())
+                    .redirectInput(inputFile.toFile())
+                    .redirectOutput(outputFile.toFile())
+                    .redirectError(errorFile.toFile());
+
+            sanitizeEnvironment(processBuilder);
+
+            Process process = processBuilder.start();
+
+            boolean completed = waitFor(
+                    process,
+                    properties.getTestTimeoutSeconds()
+            );
+            long durationMs = elapsedMs(startedAt);
+
+            if (!completed) {
+                return testCaseResponse(
+                        testCase,
+                        "",
+                        "Execution timed out after "
+                                + properties.getTestTimeoutSeconds()
+                                + " seconds.",
+                        CodeExecutionTestCaseStatus.TIME_LIMIT_EXCEEDED,
+                        durationMs
+                );
+            }
+
+            String actualOutput = readLimited(outputFile);
+            String errorOutput = readLimited(errorFile);
+
+            if (process.exitValue() != 0) {
+                return testCaseResponse(
+                        testCase,
+                        actualOutput,
+                        errorOutput,
+                        CodeExecutionTestCaseStatus.RUNTIME_ERROR,
+                        durationMs
+                );
+            }
+
+            boolean passed = normalized(actualOutput)
+                    .equals(normalized(testCase.getExpectedOutput()));
+
+            return testCaseResponse(
+                    testCase,
+                    actualOutput,
+                    errorOutput,
+                    passed
+                            ? CodeExecutionTestCaseStatus.PASSED
+                            : CodeExecutionTestCaseStatus.WRONG_ANSWER,
+                    durationMs
+            );
+        } catch (IOException exception) {
+            return testCaseResponse(
+                    testCase,
+                    "",
+                    exception.getMessage(),
+                    CodeExecutionTestCaseStatus.RUNTIME_ERROR,
+                    elapsedMs(startedAt)
+            );
+        }
+    }
+
+    private CodeExecutionResponse executionResponse(
+            Long problemId,
+            long durationMs,
+            List<CodeExecutionTestCaseResponse> results
+    ) {
+        int passedTests = (int) results.stream()
+                .filter(CodeExecutionTestCaseResponse::passed)
+                .count();
+        CodeExecutionStatus status = overallStatus(results, passedTests);
+
+        return new CodeExecutionResponse(
+                problemId,
+                status,
+                status == CodeExecutionStatus.SUCCESS,
+                passedTests,
+                results.size(),
+                durationMs,
+                "",
+                results
+        );
+    }
+
+    private CodeExecutionStatus overallStatus(
+            List<CodeExecutionTestCaseResponse> results,
+            int passedTests
+    ) {
+        if (passedTests == results.size()) {
+            return CodeExecutionStatus.SUCCESS;
+        }
+
+        if (results.stream().anyMatch(result ->
+                result.status() == CodeExecutionTestCaseStatus.TIME_LIMIT_EXCEEDED
+        )) {
+            return CodeExecutionStatus.TIME_LIMIT_EXCEEDED;
+        }
+
+        if (results.stream().anyMatch(result ->
+                result.status() == CodeExecutionTestCaseStatus.RUNTIME_ERROR
+        )) {
+            return CodeExecutionStatus.RUNTIME_ERROR;
+        }
+
+        return CodeExecutionStatus.WRONG_ANSWER;
+    }
+
+    private CodeExecutionTestCaseResponse testCaseResponse(
+            TestCase testCase,
+            String actualOutput,
+            String errorOutput,
+            CodeExecutionTestCaseStatus status,
+            long durationMs
+    ) {
+        return new CodeExecutionTestCaseResponse(
+                testCase.getId(),
+                testCase.getInput(),
+                testCase.getExpectedOutput(),
+                actualOutput,
+                status,
+                status == CodeExecutionTestCaseStatus.PASSED,
+                durationMs,
+                errorOutput
+        );
+    }
+
+    private CodeExecutionResponse unsupportedLanguageResponse(
+            Long problemId,
+            String language,
+            long durationMs
+    ) {
+        return new CodeExecutionResponse(
+                problemId,
+                CodeExecutionStatus.UNSUPPORTED_LANGUAGE,
+                false,
+                0,
+                0,
+                durationMs,
+                "Only Java execution is currently supported. Received: "
+                        + language,
+                List.of()
+        );
+    }
+
+    private CodeExecutionResponse sourceTooLargeResponse(
+            Long problemId,
+            long durationMs
+    ) {
+        return new CodeExecutionResponse(
+                problemId,
+                CodeExecutionStatus.SOURCE_TOO_LARGE,
+                false,
+                0,
+                0,
+                durationMs,
+                "Submitted source exceeds the "
+                        + properties.getMaxSourceCharacters()
+                        + " character limit.",
+                List.of()
+        );
+    }
+
+    private CodeExecutionResponse noTestsResponse(
+            Long problemId,
+            long durationMs
+    ) {
+        return new CodeExecutionResponse(
+                problemId,
+                CodeExecutionStatus.NO_TESTS,
+                false,
+                0,
+                0,
+                durationMs,
+                "",
+                List.of()
+        );
+    }
+
+    private CodeExecutionResponse monitored(CodeExecutionResponse response) {
+        runMonitor.record(response);
+        return response;
+    }
+
+    private boolean waitFor(Process process, int seconds) {
+        try {
+            boolean completed = process.waitFor(seconds, TimeUnit.SECONDS);
+
+            if (!completed) {
+                process.destroyForcibly();
+            }
+
+            return completed;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            process.destroyForcibly();
+            return false;
+        }
+    }
+
+    List<String> compileCommand(Path workspace) {
+        List<String> command = baseExecutionCommand(workspace, false);
+
+        command.addAll(List.of(
+                "javac",
+                "-J-Xmx" + properties.getMaxHeapMegabytes() + "m",
+                "-J-XX:ActiveProcessorCount="
+                        + properties.getActiveProcessorCount(),
+                "-proc:none",
+                SOURCE_FILE
+        ));
+
+        return command;
+    }
+
+    List<String> testCommand(Path workspace) {
+        String tmpDirectory = dockerMode()
+                ? "/tmp"
+                : workspace.toAbsolutePath().toString();
+        List<String> command = baseExecutionCommand(workspace, true);
+
+        command.addAll(List.of(
+                "java",
+                "-Xmx" + properties.getMaxHeapMegabytes() + "m",
+                "-XX:ActiveProcessorCount="
+                        + properties.getActiveProcessorCount(),
+                "-XX:+ExitOnOutOfMemoryError",
+                "-Djava.io.tmpdir=" + tmpDirectory,
+                "-Duser.home=" + tmpDirectory,
+                "-cp",
+                ".",
+                MAIN_CLASS
+        ));
+
+        return command;
+    }
+
+    private List<String> baseExecutionCommand(Path workspace, boolean forwardInput) {
+        if (!dockerMode()) {
+            return new ArrayList<>();
+        }
+
+        List<String> command = new ArrayList<>();
+        command.addAll(List.of(
+                "docker",
+                "run",
+                "--rm",
+                "--network",
+                "none",
+                "--cpus",
+                String.valueOf(properties.getDockerCpuCount()),
+                "--memory",
+                properties.getDockerMemoryMegabytes() + "m",
+                "--pids-limit",
+                String.valueOf(properties.getDockerPidsLimit()),
+                "--read-only",
+                "--tmpfs",
+                "/tmp:rw,nosuid,nodev,size="
+                        + properties.getDockerTmpfsMegabytes()
+                        + "m",
+                "-v",
+                workspace.toAbsolutePath() + ":/workspace:rw",
+                "-w",
+                "/workspace"
+        ));
+
+        if (forwardInput) {
+            command.add("--interactive");
+        }
+        command.add(properties.getDockerImage());
+
+        return command;
+    }
+
+    private boolean dockerMode() {
+        return properties.getMode()
+                == CodeExecutionProperties.ExecutionMode.DOCKER;
+    }
+
+    private void sanitizeEnvironment(ProcessBuilder processBuilder) {
+        // Remove JVM injection hooks from the child process environment.
+        processBuilder.environment().remove("CLASSPATH");
+        processBuilder.environment().remove("JAVA_TOOL_OPTIONS");
+        processBuilder.environment().remove("_JAVA_OPTIONS");
+        processBuilder.environment().remove("JDK_JAVA_OPTIONS");
+    }
+
+    String readLimited(Path path) throws IOException {
+        if (!Files.exists(path)) {
+            return "";
+        }
+
+        int limit = properties.getOutputLimitCharacters();
+        char[] buffer = new char[Math.min(limit, 4096)];
+        StringBuilder output = new StringBuilder(buffer.length);
+
+        // Decode only the bounded prefix; output files may be much larger than the heap.
+        try (var reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            while (output.length() < limit) {
+                int count = reader.read(
+                        buffer, 0, Math.min(buffer.length, limit - output.length())
+                );
+                if (count == -1) {
+                    return output.toString();
+                }
+                output.append(buffer, 0, count);
+            }
+
+            int next = reader.read();
+            if (next == -1) {
+                return output.toString();
+            }
+            // Avoid returning half of a supplementary Unicode character at the boundary.
+            if (!output.isEmpty()
+                    && Character.isHighSurrogate(output.charAt(output.length() - 1))
+                    && Character.isLowSurrogate((char) next)) {
+                output.setLength(output.length() - 1);
+            }
+            return output + "\n... output truncated ...";
+        }
+    }
+
+    private String normalized(String output) {
+        return value(output).stripTrailing();
+    }
+
+    private String value(String value) {
+        return value == null ? "" : value;
+    }
+
+    private long elapsedMs(Instant startedAt) {
+        return Duration.between(startedAt, Instant.now()).toMillis();
+    }
+
+    private void cleanup(Path workspace) {
+        if (workspace == null) {
+            return;
+        }
+
+        try (var paths = Files.walk(workspace)) {
+            paths.sorted(Comparator.reverseOrder())
+                    .forEach(path -> {
+                        try {
+                            Files.deleteIfExists(path);
+                        } catch (IOException ignored) {
+                            // Best-effort cleanup avoids hiding execution results.
+                        }
+                    });
+        } catch (IOException ignored) {
+            // Best-effort cleanup avoids hiding execution results.
+        }
+    }
+}
