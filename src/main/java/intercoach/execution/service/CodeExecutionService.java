@@ -20,8 +20,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -36,6 +36,8 @@ public class CodeExecutionService {
     private final CodeExecutionProperties properties;
     private final CodeExecutionRunMonitor runMonitor;
     private final Semaphore executionSlots;
+    private final CodeExecutionProcessWaiter processWaiter =
+            new CodeExecutionProcessWaiter();
 
     public CodeExecutionService(
             ProblemRepository problemRepository,
@@ -166,9 +168,10 @@ public class CodeExecutionService {
         sanitizeEnvironment(processBuilder);
 
         Process process = processBuilder.start();
-        boolean completed = waitFor(
+        boolean completed = processWaiter.waitFor(
                 process,
-                properties.getCompileTimeoutSeconds()
+                properties.getCompileTimeoutSeconds(),
+                processBuilder.command()
         );
 
         if (!completed) {
@@ -204,9 +207,10 @@ public class CodeExecutionService {
 
             Process process = processBuilder.start();
 
-            boolean completed = waitFor(
+            boolean completed = processWaiter.waitFor(
                     process,
-                    properties.getTestTimeoutSeconds()
+                    properties.getTestTimeoutSeconds(),
+                    processBuilder.command()
             );
             long durationMs = elapsedMs(startedAt);
 
@@ -379,22 +383,6 @@ public class CodeExecutionService {
         return response;
     }
 
-    private boolean waitFor(Process process, int seconds) {
-        try {
-            boolean completed = process.waitFor(seconds, TimeUnit.SECONDS);
-
-            if (!completed) {
-                process.destroyForcibly();
-            }
-
-            return completed;
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            process.destroyForcibly();
-            return false;
-        }
-    }
-
     List<String> compileCommand(Path workspace) {
         List<String> command = baseExecutionCommand(workspace, false);
 
@@ -458,7 +446,9 @@ public class CodeExecutionService {
                 "-v",
                 workspace.toAbsolutePath() + ":/workspace:rw",
                 "-w",
-                "/workspace"
+                "/workspace",
+                "--name",
+                "intercoach-run-" + UUID.randomUUID()
         ));
 
         if (forwardInput) {

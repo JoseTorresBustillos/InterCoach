@@ -389,6 +389,19 @@ class CodeExecutionServiceTest {
     }
 
     @Test
+    void dockerCommandsUseUniqueApplicationOwnedContainerNames() {
+        properties.setMode(CodeExecutionProperties.ExecutionMode.DOCKER);
+        List<String> compile = codeExecutionService.compileCommand(outputDirectory);
+        List<String> test = codeExecutionService.testCommand(outputDirectory);
+        String compileName = compile.get(compile.indexOf("--name") + 1);
+        String testName = test.get(test.indexOf("--name") + 1);
+
+        assertThat(compileName).matches("intercoach-run-[0-9a-f-]{36}");
+        assertThat(testName).matches("intercoach-run-[0-9a-f-]{36}");
+        assertThat(compileName).isNotEqualTo(testName);
+    }
+
+    @Test
     void runCodeRejectsUnknownProblems() {
         given(problemRepository.existsById(99L)).willReturn(false);
 
