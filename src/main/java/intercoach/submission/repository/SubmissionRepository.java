@@ -16,6 +16,10 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
     List<Submission> findByUserId(Long userId);
 
     @EntityGraph(attributePaths = "problem")
+    @Query("select submission from Submission submission where submission.id = :id")
+    Optional<Submission> findForReviewById(@Param("id") Long id);
+
+    @EntityGraph(attributePaths = "problem")
     List<Submission> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     @Query("select submission.user.id from Submission submission where submission.id = :submissionId")

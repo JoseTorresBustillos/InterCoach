@@ -38,6 +38,22 @@ public class SubmissionService {
             Long problemId,
             SubmissionRequest request
     ) {
+        Submission savedSubmission = createPendingSubmission(problemId, request);
+        try {
+            AiFeedbackResponse feedback = aiFeedbackService.reviewSubmission(
+                    savedSubmission.getProblem(), request.getSubmittedCode()
+            );
+            applyFeedback(savedSubmission, feedback);
+        } catch (Exception exception) {
+            savedSubmission.setStatus(SubmissionStatus.FAILED);
+            savedSubmission.setAiFeedback(
+                    "AI feedback could not be generated: " + exception.getMessage()
+            );
+        }
+        return toResponse(submissionRepository.save(savedSubmission));
+    }
+
+    Submission createPendingSubmission(Long problemId, SubmissionRequest request) {
         Problem problem = problemRepository.findById(problemId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
@@ -60,38 +76,7 @@ public class SubmissionService {
         submission.setStatus(SubmissionStatus.PENDING);
 
         // Save first so the submission exists even if the AI request fails.
-        Submission savedSubmission = submissionRepository.save(submission);
-
-        try {
-            AiFeedbackResponse feedback =
-                    aiFeedbackService.reviewSubmission(
-                            problem,
-                            request.getSubmittedCode()
-                    );
-
-            savedSubmission.setFeedbackSummary(feedback.summary());
-            savedSubmission.setCorrectness(feedback.correctness());
-            savedSubmission.setBugs(joinList(feedback.bugs()));
-            savedSubmission.setEdgeCases(joinList(feedback.edgeCases()));
-            savedSubmission.setTimeComplexity(feedback.timeComplexity());
-            savedSubmission.setSpaceComplexity(feedback.spaceComplexity());
-            savedSubmission.setHint(feedback.hint());
-            savedSubmission.setSuggestedImprovement(
-                    feedback.suggestedImprovement()
-            );
-
-            // Keep the original field populated for backward compatibility.
-            savedSubmission.setAiFeedback(feedback.summary());
-            savedSubmission.setStatus(SubmissionStatus.REVIEWED);
-        } catch (Exception exception) {
-            savedSubmission.setStatus(SubmissionStatus.FAILED);
-            savedSubmission.setAiFeedback(
-                    "AI feedback could not be generated: "
-                            + exception.getMessage()
-            );
-        }
-
-        return toResponse(submissionRepository.save(savedSubmission));
+        return submissionRepository.save(submission);
     }
 
     public SubmissionResponse getSubmissionById(Long submissionId) {
@@ -131,7 +116,7 @@ public class SubmissionService {
                 .toList();
     }
 
-    private SubmissionResponse toResponse(Submission submission) {
+    SubmissionResponse toResponse(Submission submission) {
         return new SubmissionResponse(
                 submission.getId(),
                 submission.getProblem().getId(),
@@ -154,7 +139,21 @@ public class SubmissionService {
         );
     }
 
-    private String joinList(List<String> values) {
+    static void applyFeedback(Submission submission, AiFeedbackResponse feedback) {
+        submission.setFeedbackSummary(feedback.summary());
+        submission.setCorrectness(feedback.correctness());
+        submission.setBugs(joinList(feedback.bugs()));
+        submission.setEdgeCases(joinList(feedback.edgeCases()));
+        submission.setTimeComplexity(feedback.timeComplexity());
+        submission.setSpaceComplexity(feedback.spaceComplexity());
+        submission.setHint(feedback.hint());
+        submission.setSuggestedImprovement(feedback.suggestedImprovement());
+        // Keep the original field populated for backward compatibility.
+        submission.setAiFeedback(feedback.summary());
+        submission.setStatus(SubmissionStatus.REVIEWED);
+    }
+
+    private static String joinList(List<String> values) {
         if (values == null || values.isEmpty()) {
             return "";
         }
