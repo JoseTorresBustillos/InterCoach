@@ -11,6 +11,7 @@ import intercoach.submission.model.SubmissionStatus;
 import intercoach.submission.repository.ReviewJobRepository;
 import intercoach.submission.repository.SubmissionRepository;
 import intercoach.submission.service.AiFeedbackService;
+import intercoach.submission.service.QueuedAiFeedbackService;
 import intercoach.submission.service.QueuedSubmissionService;
 import intercoach.submission.service.ReviewJobCompletionService;
 import intercoach.submission.service.ReviewJobWorker;
@@ -94,7 +95,8 @@ class ReviewQueueIT {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private DataSource dataSource;
     @MockitoSpyBean private ReviewJobRepository jobs;
-    @MockitoBean private AiFeedbackService ai;
+    @MockitoBean private AiFeedbackService synchronousAi;
+    @MockitoBean private QueuedAiFeedbackService ai;
 
     private Long userId;
     private Long problemId;

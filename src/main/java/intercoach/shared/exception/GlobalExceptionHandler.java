@@ -13,12 +13,21 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger LOGGER =
             LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
+    public ResponseEntity<ApiErrorResponse> handleMissingRoute(
+            Exception exception, HttpServletRequest request
+    ) {
+        return buildResponse(HttpStatus.NOT_FOUND, "Resource not found.", request);
+    }
 
     @ExceptionHandler(ExecutionCapacityExceededException.class)
     public ResponseEntity<ApiErrorResponse> handleExecutionCapacityExceeded(

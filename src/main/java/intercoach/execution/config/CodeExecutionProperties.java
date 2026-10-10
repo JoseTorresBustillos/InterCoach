@@ -1,7 +1,10 @@
 package intercoach.execution.config;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import java.nio.file.Path;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
@@ -19,6 +22,22 @@ public class CodeExecutionProperties {
     private ExecutionMode mode = ExecutionMode.LOCAL;
 
     private boolean requireOsIsolation;
+
+    @NotNull
+    private Path workspaceRoot = Path.of(System.getProperty("java.io.tmpdir"));
+
+    @AssertTrue(message = "execution workspace root must be an absolute path")
+    public boolean isWorkspaceRootAbsolute() {
+        return workspaceRoot == null || workspaceRoot.isAbsolute();
+    }
+
+    public Path getWorkspaceRoot() {
+        return workspaceRoot;
+    }
+
+    public void setWorkspaceRoot(Path workspaceRoot) {
+        this.workspaceRoot = workspaceRoot;
+    }
 
     @Min(1)
     private int maxConcurrentRuns = 2;

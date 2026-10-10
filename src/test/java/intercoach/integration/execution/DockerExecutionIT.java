@@ -7,10 +7,13 @@ import intercoach.execution.dto.CodeExecutionStatus;
 import intercoach.execution.service.CodeExecutionProcessWaiter;
 import intercoach.execution.service.CodeExecutionRunMonitor;
 import intercoach.execution.service.CodeExecutionService;
+import intercoach.execution.service.CodeExecutionHostPreflight;
 import intercoach.problem.model.TestCase;
 import intercoach.problem.repository.ProblemRepository;
 import intercoach.problem.repository.TestCaseRepository;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +25,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.condition.EnabledIf;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.testcontainers.DockerClientFactory;
 
@@ -36,6 +40,22 @@ class DockerExecutionIT {
     private static final String RUNNER_IMAGE = "eclipse-temurin:21-jdk";
 
     private final List<String> containers = new ArrayList<>();
+
+    @TempDir
+    private Path workspaceRoot;
+
+    @Test
+    void preflightReadsTheActualSharedWorkspaceAndRemovesItsProbe() throws Exception {
+        CodeExecutionProperties properties = new CodeExecutionProperties();
+        properties.setMode(CodeExecutionProperties.ExecutionMode.DOCKER);
+        properties.setWorkspaceRoot(workspaceRoot);
+        CodeExecutionHostPreflight preflight = new CodeExecutionHostPreflight(properties);
+        preflight.run(null);
+        assertThat(preflight.snapshot().hostReady()).isTrue();
+        try (var files = Files.list(workspaceRoot)) {
+            assertThat(files).isEmpty();
+        }
+    }
 
     static boolean dockerAvailableOrRequired() {
         return Boolean.getBoolean("intercoach.tests.require-docker")
@@ -70,6 +90,7 @@ class DockerExecutionIT {
         ));
         CodeExecutionProperties properties = new CodeExecutionProperties();
         properties.setMode(CodeExecutionProperties.ExecutionMode.DOCKER);
+        properties.setWorkspaceRoot(workspaceRoot);
         properties.setDockerImage(RUNNER_IMAGE);
         properties.setCompileTimeoutSeconds(20);
         properties.setTestTimeoutSeconds(10);

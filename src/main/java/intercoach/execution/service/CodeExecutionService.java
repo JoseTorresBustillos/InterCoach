@@ -110,7 +110,10 @@ public class CodeExecutionService {
 
         try {
             // A fresh workspace keeps compiled artifacts isolated per request.
-            workspace = Files.createTempDirectory("intercoach-code-run-");
+            Files.createDirectories(properties.getWorkspaceRoot());
+            workspace = Files.createTempDirectory(
+                    properties.getWorkspaceRoot(), "intercoach-code-run-"
+            );
             Files.writeString(
                     workspace.resolve(SOURCE_FILE),
                     request.getSubmittedCode(),

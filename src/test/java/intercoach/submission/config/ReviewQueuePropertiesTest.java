@@ -4,7 +4,7 @@ import intercoach.auth.security.UserAccessService;
 import intercoach.submission.controller.QueuedSubmissionController;
 import intercoach.submission.repository.ReviewJobRepository;
 import intercoach.submission.repository.SubmissionRepository;
-import intercoach.submission.service.AiFeedbackService;
+import intercoach.submission.service.QueuedAiFeedbackService;
 import intercoach.submission.service.QueuedSubmissionService;
 import intercoach.submission.service.ReviewJobCompletionService;
 import intercoach.submission.service.ReviewJobWorker;
@@ -27,7 +27,7 @@ class ReviewQueuePropertiesTest {
             .withBean(UserAccessService.class, () -> mock(UserAccessService.class))
             .withBean(ReviewJobRepository.class, () -> mock(ReviewJobRepository.class))
             .withBean(SubmissionRepository.class, () -> mock(SubmissionRepository.class))
-            .withBean(AiFeedbackService.class, () -> mock(AiFeedbackService.class))
+            .withBean(QueuedAiFeedbackService.class, () -> mock(QueuedAiFeedbackService.class))
             .withBean(ReviewJobCompletionService.class, () -> mock(ReviewJobCompletionService.class));
 
     @Test
@@ -64,10 +64,17 @@ class ReviewQueuePropertiesTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"max-attempts=0", "max-attempts=-1", "lease-seconds=0",
-            "retry-delay-seconds=0", "poll-interval-ms=0", "poll-interval-ms=249"})
+            "lease-seconds=109", "connect-timeout-seconds=0", "response-timeout-seconds=0",
+            "response-timeout-seconds=290", "retry-delay-seconds=0", "poll-interval-ms=0", "poll-interval-ms=249"})
     void invalidQueueLimitsFailStartup(String property) {
         runner.withPropertyValues("intercoach.review-queue." + property)
                 .run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void leaseAllowsTheExactTransportBudgetAndCompletionMargin() {
+        runner.withPropertyValues("intercoach.review-queue.lease-seconds=110")
+                .run(context -> assertThat(context).hasNotFailed());
     }
 
     @Configuration(proxyBeanMethods = false)

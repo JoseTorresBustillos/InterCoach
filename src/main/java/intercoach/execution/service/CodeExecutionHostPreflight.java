@@ -3,10 +3,14 @@ package intercoach.execution.service;
 import intercoach.execution.config.CodeExecutionProperties;
 import intercoach.execution.dto.CodeExecutionPreflightResponse;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -16,6 +20,7 @@ import org.springframework.stereotype.Service;
 public class CodeExecutionHostPreflight implements ApplicationRunner {
 
     private static final String DOCKER_COMMAND = "docker";
+    private static final Logger LOGGER = LoggerFactory.getLogger(CodeExecutionHostPreflight.class);
 
     private final CodeExecutionProperties properties;
     private final CommandExecutor commandExecutor;
@@ -69,7 +74,8 @@ public class CodeExecutionHostPreflight implements ApplicationRunner {
         );
 
         if (run(inspectCommand, timeoutSeconds)) {
-            ready(true, true, "Docker host and runner image are ready.");
+            checkWorkspace(timeoutSeconds);
+            ready(true, true, "Docker host, runner image, and shared workspace are ready.");
             return;
         }
 
@@ -98,7 +104,41 @@ public class CodeExecutionHostPreflight implements ApplicationRunner {
             );
         }
 
-        ready(true, true, "Docker runner image was pre-pulled and is ready.");
+        checkWorkspace(timeoutSeconds);
+        ready(true, true, "Docker runner image was pre-pulled; shared workspace is ready.");
+    }
+
+    private void checkWorkspace(int timeoutSeconds) {
+        Path workspace = null;
+        try {
+            Files.createDirectories(properties.getWorkspaceRoot());
+            workspace = Files.createTempDirectory(properties.getWorkspaceRoot(), "intercoach-preflight-");
+            String token = UUID.randomUUID().toString();
+            Files.writeString(workspace.resolve("probe"), token);
+            // A remote daemon must see the application's actual files at the same absolute path.
+            boolean visible = run(List.of(
+                    DOCKER_COMMAND, "run", "--rm", "--name", "intercoach-preflight-" + UUID.randomUUID(),
+                    "--network", "none", "--read-only", "--cpus", "1", "--memory", "64m",
+                    "--pids-limit", "16", "--mount",
+                    "type=bind,source=" + workspace.toAbsolutePath() + ",target=/workspace,readonly",
+                    "--entrypoint", "sh", properties.getDockerImage(), "-c",
+                    "test \"$(cat /workspace/probe)\" = \"$1\"", "sh", token
+            ), timeoutSeconds);
+            if (!visible) {
+                fail("Docker runner cannot read the shared execution workspace.", true, true);
+            }
+        } catch (IOException exception) {
+            fail("Execution workspace cannot be prepared.", true, true);
+        } finally {
+            if (workspace != null) {
+                try {
+                    Files.deleteIfExists(workspace.resolve("probe"));
+                    Files.deleteIfExists(workspace);
+                } catch (IOException exception) {
+                    LOGGER.warn("Could not remove execution preflight workspace", exception);
+                }
+            }
+        }
     }
 
     private void checkLocalMode() {
@@ -198,33 +238,14 @@ public class CodeExecutionHostPreflight implements ApplicationRunner {
 
         @Override
         public boolean run(List<String> command, int timeoutSeconds) {
-            Process process = null;
-
             try {
-                process = new ProcessBuilder(command)
+                Process process = new ProcessBuilder(command)
                         .redirectOutput(ProcessBuilder.Redirect.DISCARD)
                         .redirectError(ProcessBuilder.Redirect.DISCARD)
                         .start();
-                boolean completed = process.waitFor(
-                        timeoutSeconds,
-                        TimeUnit.SECONDS
-                );
-
-                if (!completed) {
-                    process.destroyForcibly();
-                    return false;
-                }
-
-                return process.exitValue() == 0;
+                return new CodeExecutionProcessWaiter().waitFor(process, timeoutSeconds, command)
+                        && process.exitValue() == 0;
             } catch (IOException exception) {
-                return false;
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-
-                if (process != null) {
-                    process.destroyForcibly();
-                }
-
                 return false;
             }
         }

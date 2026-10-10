@@ -15,6 +15,12 @@ public class AiFeedbackService {
     }
 
     public AiFeedbackResponse reviewSubmission(Problem problem, String submittedCode) {
+        return reviewSubmission(chatClient, problem, submittedCode);
+    }
+
+    static AiFeedbackResponse reviewSubmission(
+            ChatClient client, Problem problem, String submittedCode
+    ) {
         // Ask for strict JSON so the app can store feedback in separate fields.
         String prompt = """
                 You are an experienced coding interview coach.
@@ -56,7 +62,7 @@ public class AiFeedbackService {
                 submittedCode
         );
 
-        return chatClient.prompt()
+        return client.prompt()
                 .user(prompt)
                 .call()
                 .entity(AiFeedbackResponse.class);

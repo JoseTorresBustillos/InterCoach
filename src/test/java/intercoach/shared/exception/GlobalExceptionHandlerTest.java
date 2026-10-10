@@ -4,12 +4,37 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpHeaders;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class GlobalExceptionHandlerTest {
 
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+    @Test
+    void missingMvcRoutesAndStaticResourcesReturnNotFound() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/missing");
+        for (Exception exception : new Exception[]{
+                new NoHandlerFoundException("GET", "/api/missing", new HttpHeaders()),
+                new NoResourceFoundException(HttpMethod.GET, "api/missing")
+        }) {
+            var response = handler.handleMissingRoute(exception, request);
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+            assertThat(response.getBody().message()).isEqualTo("Resource not found.");
+        }
+    }
+
+    @Test
+    void unexpectedFailuresStillReturnAnInternalErrorWithoutDetails() {
+        var response = handler.handleUnexpectedError(new RuntimeException("private details"),
+                new MockHttpServletRequest("GET", "/api/problems"));
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(response.getBody().message()).isEqualTo("Unexpected server error.");
+    }
 
     @Test
     void mapsMissingResourcesToNotFoundResponses() {

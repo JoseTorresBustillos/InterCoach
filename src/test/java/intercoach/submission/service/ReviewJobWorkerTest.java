@@ -26,7 +26,7 @@ class ReviewJobWorkerTest {
 
     @Mock private ReviewJobRepository jobs;
     @Mock private SubmissionRepository submissions;
-    @Mock private AiFeedbackService ai;
+    @Mock private QueuedAiFeedbackService ai;
     @Mock private ReviewJobCompletionService completion;
 
     private ReviewJobWorker worker;

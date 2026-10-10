@@ -21,14 +21,14 @@ public class ReviewJobWorker {
 
     private final ReviewJobRepository jobs;
     private final SubmissionRepository submissions;
-    private final AiFeedbackService feedbackService;
+    private final QueuedAiFeedbackService feedbackService;
     private final ReviewJobCompletionService completion;
     private final ReviewQueueProperties properties;
 
     public ReviewJobWorker(
             ReviewJobRepository jobs,
             SubmissionRepository submissions,
-            AiFeedbackService feedbackService,
+            QueuedAiFeedbackService feedbackService,
             ReviewJobCompletionService completion,
             ReviewQueueProperties properties
     ) {
