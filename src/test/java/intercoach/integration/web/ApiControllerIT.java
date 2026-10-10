@@ -41,12 +41,15 @@ import intercoach.recommendation.service.RecommendationService;
 import intercoach.shared.exception.ExecutionCapacityExceededException;
 import intercoach.shared.exception.GlobalExceptionHandler;
 import intercoach.submission.controller.SubmissionController;
+import intercoach.submission.controller.QueuedSubmissionController;
+import intercoach.submission.dto.SubmissionResponse;
 import intercoach.submission.model.Submission;
 import intercoach.submission.model.SubmissionStatus;
 import intercoach.submission.repository.SubmissionRepository;
 import intercoach.submission.service.AiFeedbackService;
 import intercoach.submission.service.SubmissionInsightService;
 import intercoach.submission.service.SubmissionService;
+import intercoach.submission.service.QueuedSubmissionService;
 import intercoach.user.controller.AppUserController;
 import intercoach.user.model.AppUser;
 import intercoach.user.repository.AppUserRepository;
@@ -81,6 +84,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -92,7 +96,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(classes = ApiControllerIT.ControllerTestApplication.class)
+@SpringBootTest(classes = ApiControllerIT.ControllerTestApplication.class,
+        properties = "intercoach.review-queue.enabled=true")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import(ApiControllerIT.AiTestConfiguration.class)
@@ -125,6 +130,9 @@ class ApiControllerIT {
     @MockitoBean
     private VectorStore vectorStore;
 
+    @MockitoBean
+    private QueuedSubmissionService queuedSubmissionService;
+
     @SpringBootConfiguration
     @EnableAutoConfiguration
     @EnableConfigurationProperties(CodeExecutionProperties.class)
@@ -140,6 +148,7 @@ class ApiControllerIT {
             RecommendationController.class,
             StudyAssistantController.class,
             SubmissionController.class,
+            QueuedSubmissionController.class,
             TestCaseController.class,
             UserAnalyticsController.class,
             UserDashboardController.class,
@@ -169,6 +178,92 @@ class ApiControllerIT {
             UserAccessService.class
     })
     static class ControllerTestApplication {
+    }
+
+    @Test
+    void queuedSubmissionReturnsAcceptedAndAuthorizedPollingLocation() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        given(appUserRepository.findByUsernameIgnoreCase("coder")).willReturn(Optional.of(user));
+        String token = jwtService.generateToken(user).value();
+        given(queuedSubmissionService.createQueuedSubmission(any(), any())).willReturn(
+                new SubmissionResponse(55L, 1L, 42L, "class Solution {}", "Java",
+                        SubmissionStatus.PENDING, null, null, null, null, null, null,
+                        null, null, null, Instant.now())
+        );
+
+        mockMvc.perform(post("/api/problems/1/submissions/queued")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"userId":42,"submittedCode":"class Solution {}"}
+                                """))
+                .andExpect(status().isAccepted())
+                .andExpect(header().string(HttpHeaders.LOCATION, "/api/submissions/55"))
+                .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
+    void queuedSubmissionRejectsCrossUserAccessBeforeEnqueue() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        given(appUserRepository.findByUsernameIgnoreCase("coder")).willReturn(Optional.of(user));
+        String token = jwtService.generateToken(user).value();
+        mockMvc.perform(post("/api/problems/1/submissions/queued")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"userId":99,"submittedCode":"class Solution {}"}
+                                """))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(queuedSubmissionService);
+    }
+
+    @Test
+    void queuedSubmissionRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/problems/1/submissions/queued")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"userId":42,"submittedCode":"class Solution {}"}
+                                """))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(queuedSubmissionService);
+    }
+
+    @Test
+    void queuedSubmissionRejectsInvalidBodyBeforeEnqueue() throws Exception {
+        AppUser user = user("coder");
+        user.setPasswordHash(passwordEncoder.encode("password123"));
+        given(appUserRepository.findByUsernameIgnoreCase("coder")).willReturn(Optional.of(user));
+        String token = jwtService.generateToken(user).value();
+        mockMvc.perform(post("/api/problems/1/submissions/queued")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"userId":42,"submittedCode":" "}
+                                """))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(queuedSubmissionService);
+    }
+
+    @Test
+    void queuedSubmissionAllowsAdminToSubmitForAnotherUser() throws Exception {
+        AppUser admin = user(1L, "admin", "ADMIN");
+        admin.setPasswordHash(passwordEncoder.encode("password123"));
+        given(appUserRepository.findByUsernameIgnoreCase("admin")).willReturn(Optional.of(admin));
+        given(queuedSubmissionService.createQueuedSubmission(any(), any())).willReturn(
+                new SubmissionResponse(55L, 1L, 42L, "class Solution {}", "Java",
+                        SubmissionStatus.PENDING, null, null, null, null, null, null,
+                        null, null, null, Instant.now())
+        );
+        mockMvc.perform(post("/api/problems/1/submissions/queued")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwtService.generateToken(admin).value())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"userId":42,"submittedCode":"class Solution {}"}
+                                """))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.userId").value(42));
     }
 
     @Test
